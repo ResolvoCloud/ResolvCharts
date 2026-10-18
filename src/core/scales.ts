@@ -1,6 +1,7 @@
 import type { Scale } from "./types";
 
-/** Linear scale from domain `[d0, d1]` to range `[r0, r1]`, with `invert`. */
+/** @category Utilities
+ * Linear scale from domain `[d0, d1]` to range `[r0, r1]`, with `invert`. */
 export function linearScale(
   d0: number,
   d1: number,
@@ -16,7 +17,8 @@ export function linearScale(
   return fn;
 }
 
-/** `[min, max]` of `values`; degenerate inputs get a sane fallback domain. */
+/** @category Utilities
+ * `[min, max]` of `values`; degenerate inputs get a sane fallback domain. */
 export function extent(values: ArrayLike<number>): [number, number] {
   let min = Infinity;
   let max = -Infinity;
@@ -33,7 +35,8 @@ export function extent(values: ArrayLike<number>): [number, number] {
   return [min, max];
 }
 
-/** Pad a domain by 5% on each end; `includeZero` anchors the axis at 0. */
+/** @category Utilities
+ * Pad a domain by 5% on each end; `includeZero` anchors the axis at 0. */
 export function padDomain(
   min: number,
   max: number,

@@ -190,6 +190,7 @@ export function decimateSeriesPx(
  * ys must be pixel-space y coordinates of equal length.
  *
  * Returns interleaved [x, y] pairs ready for path construction.
+ * @category Utilities
  */
 export function decimateM4(
   xs: ArrayLike<number>,

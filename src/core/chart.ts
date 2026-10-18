@@ -110,6 +110,9 @@ const GPU_KIND: Partial<Record<ChartType, "line" | "area" | "points">> = {
 /** points retained beyond the window's left edge so they slide off-screen instead of vanishing mid-plot */
 const EDGE_KEEP = 3;
 
+/** Chart instance. Create via {@link createChart}.
+ * @category Charts
+ */
 export class Chart {
   readonly el: HTMLElement;
   readonly options: ChartOptions;
@@ -986,6 +989,7 @@ function resortXY(d: NormalizedXY): void {
 
 /**
  * Create a chart inside `el`.
+ * @category Charts
  *
  * @example
  * ```ts

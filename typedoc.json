@@ -5,7 +5,23 @@
   "readme": "README.md",
   "excludePrivate": true,
   "excludeInternal": true,
-  "categorizeByGroup": true,
+  "categorizeByGroup": false,
+  "defaultCategory": "Other",
+  "categoryOrder": [
+    "Charts",
+    "Data",
+    "Types",
+    "Theming",
+    "Utilities",
+    "Formatting",
+    "Other"
+  ],
+  "navigation": {
+    "includeCategories": true,
+    "includeGroups": false
+  },
+  "sort": ["source-order"],
+  "cleanOutputDir": true,
   "navigationLinks": {
     "GitHub": "https://github.com/ResolvoCloud/ResolvCharts",
     "npm": "https://www.npmjs.com/package/resolvcharts"

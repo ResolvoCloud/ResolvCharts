@@ -1,6 +1,7 @@
 /**
  * Binary search for the index whose value is nearest to `target`.
  * `xs` must be sorted ascending. Returns -1 for empty input.
+ * @category Utilities
  */
 export function nearestIndex(xs: ArrayLike<number>, target: number): number {
   const n = xs.length;

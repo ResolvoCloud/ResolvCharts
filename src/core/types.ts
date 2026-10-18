@@ -1,4 +1,7 @@
-/** Chart type discriminator. */
+/**
+ * Chart type discriminator.
+ * @category Charts
+ */
 export type ChartType =
   | "line"
   | "area"
@@ -11,7 +14,10 @@ export type ChartType =
   | "waterfall"
   | "baseline";
 
-/** Color/typography tokens used to render a chart. */
+/**
+ * Color/typography tokens used to render a chart.
+ * @category Theming
+ */
 export interface ThemeTokens {
   bg: string;
   text: string;
@@ -33,45 +39,65 @@ export interface ThemeTokens {
   fontFamily: string;
 }
 
-/** One series of an xy chart. */
+/**
+ * One series of an xy chart.
+ * @category Data
+ */
 export interface SeriesInput {
   label?: string;
   color?: string;
   y: ArrayLike<number>;
 }
 
-/** Data for xy charts (line, area, scatter, sparkline, baseline). `x` may be unsorted — it is sorted internally. */
+/** Data for xy charts (line, area, scatter, sparkline, baseline). `x` may be unsorted — it is sorted internally.
+ * @category Data
+ */
 export interface XYData {
   x: ArrayLike<number>;
   series: SeriesInput[];
 }
 
-/** One series of a categorical chart. */
+/**
+ * One series of a categorical chart.
+ * @category Data
+ */
 export interface CategorySeriesInput {
   label?: string;
   color?: string;
   values: ArrayLike<number>;
 }
 
-/** Data for `bar` charts (one entry per `categories` element). */
+/**
+ * Data for `bar` charts (one entry per `categories` element).
+ * @category Data
+ */
 export interface CategoryData {
   categories: string[];
   series: CategorySeriesInput[];
 }
 
-/** One donut slice. */
+/**
+ * One donut slice.
+ * @category Data
+ */
 export interface DonutSlice {
   label: string;
   value: number;
   color?: string;
 }
 
-/** Data for `donut` charts. */
+/**
+ * Data for `donut` charts.
+ * @category Data
+ */
 export interface DonutData {
   slices: DonutSlice[];
 }
 
-/** One OHLC candle. `x` is typically an epoch timestamp. */
+/**
+ * One OHLC candle. `x` is typically an epoch timestamp.
+ * @category Data
+ */
 export interface OHLCCandle {
   x: number;
   open: number;
@@ -81,12 +107,18 @@ export interface OHLCCandle {
   volume?: number;
 }
 
-/** Data for `candle` and `ohlc` charts. */
+/**
+ * Data for `candle` and `ohlc` charts.
+ * @category Data
+ */
 export interface OHLCData {
   candles: OHLCCandle[];
 }
 
-/** Data for `waterfall` charts. */
+/**
+ * Data for `waterfall` charts.
+ * @category Data
+ */
 export interface WaterfallData {
   categories: string[];
   /** Delta per category; entries listed in `totals` render as absolute columns. */
@@ -95,7 +127,9 @@ export interface WaterfallData {
   totals?: number[];
 }
 
-/** Union of all per-type data shapes; the chart picks the matching member by `options.type`. */
+/** Union of all per-type data shapes; the chart picks the matching member by `options.type`.
+ * @category Data
+ */
 export type ChartData =
   | XYData
   | CategoryData
@@ -103,10 +137,16 @@ export type ChartData =
   | OHLCData
   | WaterfallData;
 
-/** Segment interpolation: straight lines, step, or monotone cubic. */
+/**
+ * Segment interpolation: straight lines, step, or monotone cubic.
+ * @category Charts
+ */
 export type CurveMode = "linear" | "step" | "smooth";
 
-/** Payload passed to `ChartOptions.onHover`. */
+/**
+ * Payload passed to `ChartOptions.onHover`.
+ * @category Charts
+ */
 export type HoverInfo =
   | {
       kind: "point";
@@ -149,7 +189,10 @@ export type HoverInfo =
       py: number;
     };
 
-/** Options accepted by {@link createChart}. */
+/**
+ * Options accepted by {@link createChart}.
+ * @category Charts
+ */
 export interface ChartOptions {
   type: ChartType;
   data: ChartData;
@@ -220,6 +263,9 @@ export interface ChartOptions {
   onHover?: (info: HoverInfo | null) => void;
 }
 
+/** Rectangle in pixel space.
+ * @category Types
+ */
 export interface Rect {
   x: number;
   y: number;
@@ -227,6 +273,9 @@ export interface Rect {
   h: number;
 }
 
+/** Domain→range scale function returned by {@link linearScale}.
+ * @category Utilities
+ */
 export interface Scale {
   (v: number): number;
   invert(px: number): number;

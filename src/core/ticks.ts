@@ -15,6 +15,9 @@ function niceStep(range: number, target: number): number {
   return step * pow;
 }
 
+/** "Nice" round tick values covering `[min, max]`, ~`target` count.
+ * @category Utilities
+ */
 export function computeTicks(min: number, max: number, target = 5): number[] {
   if (!(min < max)) return [min];
   const step = niceStep(max - min, target);

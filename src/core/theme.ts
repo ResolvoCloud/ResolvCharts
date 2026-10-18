@@ -2,6 +2,9 @@ import type { ChartOptions, ThemeTokens } from "./types";
 
 const FONT = 'Inter, system-ui, -apple-system, "Segoe UI", sans-serif';
 
+/** Built-in light theme.
+ * @category Theming
+ */
 export const lightTheme: ThemeTokens = {
   bg: "#ffffff",
   text: "#1f1f1f",
@@ -21,6 +24,9 @@ export const lightTheme: ThemeTokens = {
   fontFamily: FONT,
 };
 
+/** Built-in dark theme.
+ * @category Theming
+ */
 export const darkTheme: ThemeTokens = {
   bg: "#0a0a0a",
   text: "#ededed",
@@ -53,6 +59,9 @@ export const categoricalDark: string[] = [
   "#f5b84d",
 ];
 
+/** Merge a theme option (`"light" | "dark" | partial tokens`) into full {@link ThemeTokens}.
+ * @category Theming
+ */
 export function resolveTheme(
   opt: ChartOptions["theme"],
   accent: string | undefined,
