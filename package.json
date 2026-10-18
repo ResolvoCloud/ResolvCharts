@@ -5,7 +5,7 @@
   "author": "Resolvo Cloud",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ResolvoCloud/ResolvCharts.git"
+    "url": "git+https://github.com/ResolvoCloud/ResolvCharts.git"
   },
   "bugs": "https://github.com/ResolvoCloud/ResolvCharts/issues",
   "homepage": "https://github.com/ResolvoCloud/ResolvCharts",
