@@ -2,7 +2,7 @@
   "files": {
     "includes": [
       "**",
-      "!dist",
+      "!**/dist",
       "!.cdn-tmp",
       "!.bench-out",
       "!docs",
