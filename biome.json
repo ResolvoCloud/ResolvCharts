@@ -1,0 +1,19 @@
+{
+  "files": {
+    "includes": ["**", "!dist", "!.cdn-tmp", "!.bench-out", "!docs", "!*.png"]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+      "correctness": {
+        "noUnusedFunctionParameters": "warn"
+      }
+    }
+  }
+}

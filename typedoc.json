@@ -1,0 +1,13 @@
+{
+  "entryPoints": ["src/index.ts"],
+  "out": "docs",
+  "name": "resolvcharts",
+  "readme": "README.md",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "categorizeByGroup": true,
+  "navigationLinks": {
+    "GitHub": "https://github.com/ResolvoCloud/ResolvCharts",
+    "npm": "https://www.npmjs.com/package/resolvcharts"
+  }
+}

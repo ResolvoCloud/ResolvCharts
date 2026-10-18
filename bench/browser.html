@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>resolvcharts browser bench</title>
+<style>body{margin:0;background:#111}div.c{height:240px;width:900px}</style>
+</head>
+<body>
+<div class="c" id="c"></div>
+<script type="module">
+import { createChart } from "../dist/index.mjs";
+
+const N = 100_000;
+const xs = new Float64Array(N);
+const ys = new Float64Array(N);
+const ys2 = new Float64Array(N);
+for (let i = 0; i < N; i++) {
+  xs[i] = i;
+  ys[i] = 50 + 30 * Math.sin(i / 500) + (i % 17);
+  ys2[i] = 60 + 20 * Math.cos(i / 300) + (i % 13);
+}
+
+function stats(a) {
+  const s = [...a].sort((x, y) => x - y);
+  const p = (q) => s[Math.min(s.length - 1, Math.floor(q * s.length))];
+  return {
+    n: a.length,
+    avg: a.reduce((x, y) => x + y, 0) / a.length,
+    p50: p(0.5),
+    p95: p(0.95),
+    max: s[s.length - 1],
+  };
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const frame = () => new Promise((r) => requestAnimationFrame(r));
+
+// measure the JS-side render() call directly (chart.render is ts-private,
+// runtime-accessible) — for canvas this is the raster submit cost too
+async function measureRender(type, renderer, gpuOpts, frames = 120) {
+  const el = document.querySelector("#c");
+  el.innerHTML = "";
+  const ch = createChart(el, {
+    type,
+    renderer,
+    gpu: gpuOpts,
+    animate: false,
+    tooltip: false,
+    data: { x: xs, series: [{ y: ys }, { y: ys2 }] },
+  });
+  await sleep(300); // let webgpu init + first paint settle
+  const gpuActive = !!ch.gpu; // confirm the gpu backend actually attached
+  const times = [];
+  const gpuTimes = [];
+  for (let i = 0; i < frames; i++) {
+    const t0 = performance.now();
+    ch.render(1);
+    times.push(performance.now() - t0);
+    if (ch.gpu?.gpuMs != null) gpuTimes.push(ch.gpu.gpuMs);
+    await frame(); // let the browser composite before next iteration
+  }
+  const ai = ch.gpu?.device?.adapterInfo;
+  const adapterInfo = ai
+    ? {
+        vendor: ai.vendor,
+        architecture: ai.architecture,
+        device: ai.device,
+        description: ai.description,
+        backend: ai.backend,
+      }
+    : null;
+  ch.destroy();
+  return { submit: stats(times), gpuNs: gpuTimes.length ? stats(gpuTimes) : null, gpuActive, adapterInfo };
+}
+
+window.runBench = async () => {
+  const out = { gpu: !!navigator.gpu };
+  // adapter info probe
+  const infoOf = (a) =>
+    a
+      ? {
+          vendor: a.info.vendor,
+          architecture: a.info.architecture,
+          device: a.info.device,
+          description: a.info.description,
+          backend: a.info.backend,
+          subgroupMinSize: a.info.subgroupMinSize,
+          subgroupMaxSize: a.info.subgroupMaxSize,
+          isFallbackAdapter: a.isFallbackAdapter,
+        }
+      : null;
+  if (navigator.gpu) {
+    const adapter = await navigator.gpu.requestAdapter();
+    out.adapter = infoOf(adapter);
+    out.adapterFeatures = adapter ? [...adapter.features] : [];
+    const compat = await navigator.gpu
+      .requestAdapter({ featureLevel: "compatibility" })
+      .catch(() => null);
+    out.compatAdapter = infoOf(compat);
+    const hiperf = await navigator.gpu
+      .requestAdapter({ powerPreference: "high-performance" })
+      .catch(() => null);
+    out.hiperfAdapter = infoOf(hiperf);
+  }
+  for (const type of ["line", "scatter"]) {
+    out[`render:${type}/canvas`] = await measureRender(type, "canvas");
+    out[`render:${type}/gpu`] = await measureRender(type, "webgpu", { timing: true });
+    out[`render:${type}/gpu-compat`] = await measureRender(type, "webgpu", { compat: true });
+    out[`render:${type}/gpu-hiperf`] = await measureRender(type, "webgpu", {
+      powerPreference: "high-performance",
+    });
+  }
+  return out;
+};
+
+window.benchReady = true;
+</script>
+</body>
+</html>
