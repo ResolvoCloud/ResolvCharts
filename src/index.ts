@@ -8,6 +8,7 @@ export { computeTicks } from "./core/ticks";
 export type {
   CategoryData,
   CategorySeriesInput,
+  CategorySeriesKind,
   ChartData,
   ChartOptions,
   ChartType,

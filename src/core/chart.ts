@@ -1,6 +1,7 @@
 import { hitBar, renderBar } from "../charts/bar";
 import { hitBaseline, renderBaseline } from "../charts/baseline";
 import { hitCandle, renderCandles } from "../charts/candle";
+import { hitCombo, renderCombo } from "../charts/combo";
 import { hitDonut, renderDonut } from "../charts/donut";
 import { FLOW_RIPPLE, hitXY, renderLine, seriesPoints } from "../charts/line";
 import type { RenderContext } from "../charts/registry";
@@ -60,6 +61,12 @@ const MODULES: Record<ChartType, TypeModule> = {
     defaultTooltip: true,
   },
   bar: { render: renderBar, hit: hitBar, axes: true, defaultTooltip: true },
+  combo: {
+    render: renderCombo,
+    hit: (r, px) => hitCombo(r, px),
+    axes: true,
+    defaultTooltip: true,
+  },
   sparkline: {
     render: renderSparkline,
     hit: (r, px) => hitSparkline(r, px),
@@ -189,7 +196,7 @@ export class Chart {
     if (options.height) el.style.height = `${options.height}px`;
     const w = el.clientWidth || 320;
     const h = el.clientHeight || (options.type === "sparkline" ? 32 : 240);
-    this.backend = new CanvasBackend(el, w, h);
+    this.backend = new CanvasBackend(el, w, h, options.canvas);
     this.reduced =
       typeof matchMedia === "function" &&
       matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -300,7 +307,7 @@ export class Chart {
       const total = slices.reduce((a, s) => a + Math.max(0, s.value), 0);
       return { kind: "donut", slices, total };
     }
-    if (t === "bar") {
+    if (t === "bar" || t === "combo") {
       const d = data as CategoryData;
       const prevSeries = prev?.kind === "category" ? prev.series : [];
       return {
@@ -309,6 +316,7 @@ export class Chart {
         series: d.series.map((s, i) => ({
           label: s.label ?? `Series ${i + 1}`,
           color: seriesColor(this.theme, i, s.color),
+          kind: s.kind ?? "column",
           values: Float64Array.from(s.values),
           prevValues: prevSeries[i]?.values ?? null,
         })),
@@ -455,12 +463,19 @@ export class Chart {
           let pos = 0;
           let neg = 0;
           for (const s of d.series) {
+            if (s.kind !== "column") continue;
             const v = s.values[ci] ?? 0;
             if (v >= 0) pos += v;
             else neg += v;
           }
           min = Math.min(min, neg);
           max = Math.max(max, pos);
+        }
+        for (const s of d.series) {
+          if (s.kind === "column") continue;
+          const e = extent(s.values);
+          min = Math.min(min, e[0]);
+          max = Math.max(max, e[1]);
         }
       } else {
         for (const s of d.series) {
@@ -625,7 +640,7 @@ export class Chart {
         ctx.fillText(fmtX(t), px, plot.y + plot.h + 6);
       }
     }
-    if (this.options.type === "bar") {
+    if (this.options.type === "bar" || this.options.type === "combo") {
       const base = Math.round(yScale(0)) + 0.5;
       if (base >= plot.y && base <= plot.y + plot.h + 1) {
         ctx.strokeStyle = this.theme.axisBaseline;
@@ -704,12 +719,16 @@ export class Chart {
       o.lineTo(x, plot.y + plot.h);
       o.stroke();
       const d = this.data;
-      if (d.kind === "xy" && info.kind === "point") {
+      if (info.kind === "point" && (d.kind === "xy" || d.kind === "category")) {
         for (const v of info.values) {
           const s = d.series.find(
             (s2) => s2.label === v.label && s2.color === v.color,
           );
-          const yv = s ? s.y[info.index] : v.y;
+          const yv = s
+            ? "y" in s
+              ? s.y[info.index]
+              : s.values[info.index]
+            : v.y;
           o.fillStyle = v.color;
           o.strokeStyle = this.theme.bg;
           o.lineWidth = 2;
@@ -777,7 +796,7 @@ export class Chart {
           label: v.label,
           value: fmtY(v.y),
         })),
-        fmtX(info.x),
+        info.title ?? fmtX(info.x),
       );
     } else if (info.kind === "bar") {
       this.tooltip.show(

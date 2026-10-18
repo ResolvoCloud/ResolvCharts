@@ -1,9 +1,9 @@
 import type { HoverInfo, NormalizedCategory, Rect } from "../core/types";
 import type { RenderContext } from "./registry";
 
-const MAX_BAR_W = 40;
-const GAP_RATIO = 0.2;
-const RADIUS = 3;
+export const MAX_BAR_W = 40;
+export const GAP_RATIO = 0.2;
+export const RADIUS = 3;
 
 export function barGeometry(
   r: RenderContext,
@@ -26,7 +26,7 @@ export function barGeometry(
   return { x, y, w: barW, h };
 }
 
-function topRounded(
+export function topRounded(
   ctx: CanvasRenderingContext2D,
   rect: Rect,
   rad: number,

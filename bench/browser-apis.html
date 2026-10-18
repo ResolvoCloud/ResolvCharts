@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>resolvcharts browser-api bench</title>
+<style>body{margin:0;background:#111}div.c{height:240px;width:900px}</style>
+</head>
+<body>
+<div class="c" id="c"></div>
+<script type="module">
+import { createChart } from "../dist/index.mjs";
+
+const N = 100_000;
+const xs = new Float64Array(N);
+const ys = new Float64Array(N);
+const ys2 = new Float64Array(N);
+for (let i = 0; i < N; i++) {
+  xs[i] = i;
+  ys[i] = 50 + 30 * Math.sin(i / 500) + (i % 17);
+  ys2[i] = 60 + 20 * Math.cos(i / 300) + (i % 13);
+}
+
+function stats(a) {
+  if (!a.length) return null;
+  const s = [...a].sort((x, y) => x - y);
+  const p = (q) => s[Math.min(s.length - 1, Math.floor(q * s.length))];
+  return {
+    n: a.length,
+    avg: +(a.reduce((x, y) => x + y, 0) / a.length).toFixed(3),
+    p50: +p(0.5).toFixed(3),
+    p95: +p(0.95).toFixed(3),
+    max: +s[s.length - 1].toFixed(3),
+  };
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// rAF stalls in backgrounded tabs — race it so the bench still runs there
+const frame = () =>
+  Promise.race([
+    new Promise((r) => requestAnimationFrame((t) => r(t))),
+    new Promise((r) => setTimeout(() => r(performance.now()), 25)),
+  ]);
+
+// ---- context-option injection -------------------------------------------
+// CanvasBackend calls getContext("2d", {alpha:true}) once per canvas; the
+// overlay canvas has style.pointerEvents === "none" before its getContext
+// call, which lets us keep it translucent while testing alpha:false on main.
+let injected = null;
+const origGetContext = HTMLCanvasElement.prototype.getContext;
+const shim2d = function (kind, opts) {
+  if (kind === "2d" && injected) {
+    return origGetContext.call(this, kind, { ...opts, ...injected });
+  }
+  return origGetContext.call(this, kind, opts);
+};
+HTMLCanvasElement.prototype.getContext = shim2d;
+
+// alpha:false only on the main canvas (first non-overlay getContext call);
+// overlay + lazy gridCache stay translucent
+function alphaFalsePatch() {
+  let mainDone = false;
+  HTMLCanvasElement.prototype.getContext = function (kind, opts) {
+    if (kind === "2d") {
+      const isOverlay = this.style.pointerEvents === "none";
+      const alpha = !isOverlay && !mainDone ? false : true;
+      if (!isOverlay && !mainDone) mainDone = true;
+      return origGetContext.call(this, kind, { ...opts, alpha });
+    }
+    return origGetContext.call(this, kind, opts);
+  };
+}
+
+function unpatch() {
+  HTMLCanvasElement.prototype.getContext = shim2d;
+  injected = null;
+}
+
+const origGpuConfigure =
+  typeof GPUCanvasContext !== "undefined"
+    ? GPUCanvasContext.prototype.configure
+    : null;
+function patchGpuAlphaMode(am) {
+  if (!origGpuConfigure) return () => {};
+  GPUCanvasContext.prototype.configure = function (desc) {
+    return origGpuConfigure.call(this, { ...desc, alphaMode: am });
+  };
+  return () => {
+    GPUCanvasContext.prototype.configure = origGpuConfigure;
+  };
+}
+
+// ---- chart-level measurement ---------------------------------------------
+async function measure(type, opts, frames = 150) {
+  const el = document.querySelector("#c");
+  el.innerHTML = "";
+  el.removeAttribute("style");
+  if (opts.contain) {
+    el.style.contain = "strict";
+    el.style.width = "900px";
+    el.style.height = "240px";
+  }
+  if (opts.alphaFalse) alphaFalsePatch();
+  else if (opts.ctx) injected = opts.ctx;
+  const ungpu = opts.gpuAlphaMode ? patchGpuAlphaMode(opts.gpuAlphaMode) : null;
+  let ch;
+  try {
+    ch = createChart(el, {
+      type,
+      renderer: opts.renderer ?? "canvas",
+      gpu: opts.gpu,
+      animate: false,
+      tooltip: false,
+      data: { x: xs, series: [{ y: ys }, { y: ys2 }] },
+    });
+  } catch (e) {
+    unpatch();
+    ungpu?.();
+    return { error: String(e) };
+  }
+  await sleep(400); // webgpu init + first paint settle
+  // gridCache context is created lazily on first render — keep patch on
+  ch.render(1);
+  unpatch();
+  ungpu?.();
+  const times = [];
+  const gaps = [];
+  const gpuTimes = [];
+  let prev = 0;
+  const pause = opts.noFrame ? () => Promise.resolve(0) : frame;
+  for (let i = 0; i < frames; i++) {
+    const t0 = performance.now();
+    ch.render(1);
+    times.push(performance.now() - t0);
+    if (ch.gpu?.gpuMs != null) gpuTimes.push(ch.gpu.gpuMs);
+    const t = await pause();
+    if (prev) gaps.push(t - prev);
+    prev = t;
+  }
+  const attrs = ch.backend?.main?.getContextAttributes?.() ?? null;
+  const gpuActive = !!ch.gpu;
+  ch.destroy();
+  return {
+    submit: stats(times),
+    rafGap: opts.noFrame ? null : stats(gaps),
+    gpuMs: gpuTimes.length ? stats(gpuTimes) : null,
+    gpuActive,
+    ctxAttrs: attrs,
+  };
+}
+
+// ---- micro benches --------------------------------------------------------
+function makePts(n, w, h) {
+  const a = new Float32Array(n * 2);
+  for (let i = 0; i < n; i++) {
+    a[2 * i] = (i / (n - 1)) * w;
+    a[2 * i + 1] = h / 2 + (h / 3) * Math.sin(i / 40);
+  }
+  return a;
+}
+
+async function microBenches(frames = 120, noFrame = false) {
+  const pause = noFrame ? () => Promise.resolve(0) : frame;
+  const out = {};
+  const W = 880;
+  const H = 200;
+  const cnv = document.createElement("canvas");
+  cnv.width = W;
+  cnv.height = H;
+  const ctx = cnv.getContext("2d");
+
+  // Path2D: cached vs rebuilt
+  const pts = makePts(2000, W, H);
+  const build = () => {
+    const p = new Path2D();
+    p.moveTo(pts[0], pts[1]);
+    for (let i = 1; i < pts.length / 2; i++) p.lineTo(pts[2 * i], pts[2 * i + 1]);
+    return p;
+  };
+  const cached = build();
+  let t = [];
+  for (let i = 0; i < frames; i++) {
+    const t0 = performance.now();
+    ctx.clearRect(0, 0, W, H);
+    ctx.stroke(cached);
+    t.push(performance.now() - t0);
+    await pause();
+  }
+  out.path2dCached = stats(t);
+  t = [];
+  for (let i = 0; i < frames; i++) {
+    const t0 = performance.now();
+    ctx.clearRect(0, 0, W, H);
+    ctx.stroke(build());
+    t.push(performance.now() - t0);
+    await pause();
+  }
+  out.path2dRebuild = stats(t);
+
+  // blit: drawImage(canvas) vs transferToImageBitmap vs ImageBitmap reuse
+  if (typeof OffscreenCanvas !== "undefined") {
+    const off = new OffscreenCanvas(W, H);
+    const octx = off.getContext("2d");
+    const fillOff = () => {
+      octx.clearRect(0, 0, W, H);
+      octx.strokeStyle = "#333";
+      octx.beginPath();
+      for (let y = 0; y < H; y += 40) {
+        octx.moveTo(0, y + 0.5);
+        octx.lineTo(W, y + 0.5);
+      }
+      octx.stroke();
+    };
+    fillOff();
+    t = [];
+    for (let i = 0; i < frames; i++) {
+      const t0 = performance.now();
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(off, 0, 0);
+      t.push(performance.now() - t0);
+      await pause();
+    }
+    out.blitDrawImageCanvas = stats(t);
+    // ImageBitmap snapshot reused every frame (static grid analogue)
+    const bmp = await createImageBitmap(off);
+    t = [];
+    for (let i = 0; i < frames; i++) {
+      const t0 = performance.now();
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(bmp, 0, 0);
+      t.push(performance.now() - t0);
+      await pause();
+    }
+    out.blitImageBitmap = stats(t);
+    bmp.close();
+    // transferToImageBitmap: zero-copy but detaches — source must repaint
+    t = [];
+    for (let i = 0; i < frames; i++) {
+      fillOff();
+      const b = off.transferToImageBitmap();
+      const t0 = performance.now();
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(b, 0, 0);
+      t.push(performance.now() - t0);
+      b.close();
+      await pause();
+    }
+    out.blitTransfer = stats(t);
+  }
+
+  // scheduler.postTask vs rAF scheduling latency (skip rAF when frames stall)
+  if (!noFrame) {
+    const rafT = [];
+    for (let i = 0; i < 60; i++) {
+      const t0 = performance.now();
+      await frame();
+      rafT.push(performance.now() - t0);
+    }
+    out.schedRaf = stats(rafT);
+  }
+  if (window.scheduler?.postTask) {
+    for (const prio of ["user-blocking", "user-visible", "background"]) {
+      const a = [];
+      for (let i = 0; i < 60; i++) {
+        const t0 = performance.now();
+        await scheduler.postTask(() => {}, { priority: prio });
+        a.push(performance.now() - t0);
+      }
+      out[`postTask:${prio}`] = stats(a);
+    }
+  } else {
+    out.postTask = "unavailable";
+  }
+  return out;
+}
+
+function probe() {
+  const c = document.createElement("canvas");
+  const ctx = c.getContext("2d");
+  let attrs = null;
+  try {
+    attrs = ctx.getContextAttributes?.() ?? null;
+  } catch {}
+  // test which option keys Chrome accepts without throwing
+  const accepted = {};
+  for (const [k, v] of Object.entries({
+    alpha: false,
+    desynchronized: true,
+    willReadFrequently: true,
+    colorSpace: "display-p3",
+    latencyMode: "latency",
+  })) {
+    try {
+      const cc = document.createElement("canvas");
+      const cx = cc.getContext("2d", { [k]: v });
+      const at = cx?.getContextAttributes?.() ?? {};
+      accepted[k] = at[k] === undefined ? "set?" : at[k];
+    } catch (e) {
+      accepted[k] = `throw:${e.message}`;
+    }
+  }
+  return {
+    dpr: window.devicePixelRatio,
+    ctxAttrs: attrs,
+    accepted,
+    offscreenCanvas: typeof OffscreenCanvas !== "undefined",
+    transferControl: "transferControlToOffscreen" in HTMLCanvasElement.prototype,
+    transferToImageBitmap:
+      typeof OffscreenCanvas !== "undefined" &&
+      "transferToImageBitmap" in OffscreenCanvas.prototype,
+    createImageBitmap: typeof createImageBitmap === "function",
+    imageBitmapClose: "close" in (window.ImageBitmap?.prototype ?? {}),
+    webgpu: !!navigator.gpu,
+    schedulerPostTask: !!window.scheduler?.postTask,
+    containStrict: CSS.supports("contain", "strict"),
+    contentVisibility: CSS.supports("content-visibility", "auto"),
+  };
+}
+
+window.runBench = async (frames = 150) => {
+  const out = { ua: navigator.userAgent, support: probe() };
+  const variants = [
+    ["baseline", {}],
+    ["desynchronized", { ctx: { desynchronized: true } }],
+    ["alpha:false", { alphaFalse: true }],
+    ["willReadFrequently", { ctx: { willReadFrequently: true } }],
+    ["colorSpace:display-p3", { ctx: { colorSpace: "display-p3" } }],
+    ["latencyMode:latency", { ctx: { latencyMode: "latency" } }],
+    [
+      "desync+latency",
+      { ctx: { desynchronized: true, latencyMode: "latency" } },
+    ],
+    ["contain:strict", { contain: true }],
+  ];
+  for (const [name, o] of variants) {
+    out[`line/${name}`] = await measure("line", o, frames);
+  }
+  out[`scatter/baseline`] = await measure("scatter", {}, frames);
+  out[`scatter/desynchronized`] = await measure(
+    "scatter",
+    { ctx: { desynchronized: true } },
+    frames,
+  );
+  if (navigator.gpu) {
+    for (const am of ["premultiplied", "opaque"]) {
+      out[`webgpu/alphaMode:${am}`] = await measure(
+        "line",
+        { renderer: "webgpu", gpu: { timing: true }, gpuAlphaMode: am },
+        frames,
+      );
+    }
+  }
+  out.micro = await microBenches(120);
+  return out;
+};
+
+// interleaved A/B driver to cancel JIT/GPU warmup drift
+window.measureVariant = (opts, frames = 100, type = "line") =>
+  measure(type, opts, frames);
+window.ab = async (variants, frames = 100, reps = 3, type = "line") => {
+  const acc = {};
+  for (const v of variants) acc[v[0]] = { submit: [], gpu: [], attrs: null };
+  for (let r = 0; r < reps; r++) {
+    for (const [name, o] of variants) {
+      const m = await measure(type, o, frames);
+      if (m.error) {
+        acc[name].error = m.error;
+        continue;
+      }
+      acc[name].submit.push(m.submit.avg);
+      if (m.gpuMs) acc[name].gpu.push(m.gpuMs.avg);
+      acc[name].attrs = m.ctxAttrs;
+    }
+  }
+  for (const v of Object.values(acc)) {
+    if (v.submit.length) {
+      v.avg = stats(v.submit);
+      if (v.gpu.length) v.gpuAvg = stats(v.gpu);
+    }
+    delete v.submit;
+    delete v.gpu;
+  }
+  return acc;
+};
+
+window.microBenches = microBenches;
+window.probeSupport = probe;
+window.benchReady = true;
+</script>
+</body>
+</html>

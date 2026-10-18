@@ -27,7 +27,7 @@ const chart = createChart(document.querySelector("#chart")!, {
 });
 ```
 
-Chart types: `line`, `area`, `bar` (grouped or `stacked`), `sparkline`, `scatter`, `donut`, `candle`, `ohlc`, `waterfall`, `baseline`.
+Chart types: `line`, `area`, `bar` (grouped or `stacked`), `combo`, `sparkline`, `scatter`, `donut`, `candle`, `ohlc`, `waterfall`, `baseline`.
 
 ```ts
 // Candlestick (+ optional volume band)
@@ -58,6 +58,20 @@ createChart(el, {
   type: "bar", stacked: true,
   data: { categories: ["Q1", "Q2"], series: [{ label: "A", values: [3, 5] }, { label: "B", values: [2, -1] }] },
 });
+
+// Combo — per-series `kind`: "column" (default), "line", or "area".
+// Columns group per category; line/area series overlay on category centers.
+createChart(el, {
+  type: "combo",
+  data: {
+    categories: ["Jan", "Feb", "Mar"],
+    series: [
+      { label: "Inflow",  values: [42, 55, 48], kind: "column" },
+      { label: "Outflow", values: [30, 41, 37], kind: "column" },
+      { label: "Net",     values: [12, 14, 11], kind: "area" },
+    ],
+  },
+});
 ```
 
 ```ts
@@ -78,7 +92,7 @@ createChart(el, {
 
 | Option | Default | Description |
 |---|---|---|
-| `type` | — | `line` `area` `bar` `sparkline` `scatter` `donut` `candle` `ohlc` `waterfall` `baseline` |
+| `type` | — | `line` `area` `bar` `combo` `sparkline` `scatter` `donut` `candle` `ohlc` `waterfall` `baseline` |
 | `data` | — | `{x, series}` · `{categories, series}` · `{slices}` · `{candles}` · waterfall shape |
 | `theme` | `"light"` | `"light"` `"dark"` or partial token object |
 | `accent` | — | Primary series color |
@@ -89,7 +103,7 @@ createChart(el, {
 | `flow` | `false` | Continuous-flow mode for xy charts — ripple easing + tween duration auto-follows append cadence |
 | `window` | — | Visible points in the sliding window (xy charts) |
 | `maxPoints` | — | Hard cap on retained datapoints during `append()`; shows last N when `window` is unset |
-| `stacked` | `false` | Bar charts: stack series per category |
+| `stacked` | `false` | Bar/combo charts: stack column series per category |
 | `baseline` | first value | Baseline chart reference value |
 | `height` | — | Chart height in px |
 | `labels` | — | `{x?: (v)=>string, y?: (v)=>string}` tick formatters |

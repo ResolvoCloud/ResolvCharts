@@ -29,9 +29,9 @@ function makeCanvas(cssW: number, cssH: number): HTMLCanvasElement {
 
 function setup2d(
   canvas: HTMLCanvasElement,
-  alpha: boolean,
+  settings: CanvasRenderingContext2DSettings,
 ): CanvasRenderingContext2D {
-  const ctx = canvas.getContext("2d", { alpha });
+  const ctx = canvas.getContext("2d", settings);
   if (!ctx) throw new Error("resolvcharts: could not get 2d context");
   return ctx;
 }
@@ -49,17 +49,24 @@ export class CanvasBackend implements RenderBackend {
   private gridCache: HTMLCanvasElement | null = null;
   private gridCtx: CanvasRenderingContext2D | null = null;
   private container: HTMLElement;
+  private settings: CanvasRenderingContext2DSettings;
 
-  constructor(container: HTMLElement, cssW: number, cssH: number) {
+  constructor(
+    container: HTMLElement,
+    cssW: number,
+    cssH: number,
+    settings: CanvasRenderingContext2DSettings = {},
+  ) {
     this.container = container;
+    this.settings = { alpha: true, ...settings };
     this.dpr = Math.max(1, window.devicePixelRatio || 1);
     this.width = cssW;
     this.height = cssH;
     this.mainCanvas = makeCanvas(cssW, cssH);
     this.overlayCanvas = makeCanvas(cssW, cssH);
     this.overlayCanvas.style.pointerEvents = "none";
-    this.main = setup2d(this.mainCanvas, true);
-    this.overlay = setup2d(this.overlayCanvas, true);
+    this.main = setup2d(this.mainCanvas, this.settings);
+    this.overlay = setup2d(this.overlayCanvas, this.settings);
     container.append(this.mainCanvas, this.overlayCanvas);
     this.applySize();
   }
@@ -87,7 +94,7 @@ export class CanvasBackend implements RenderBackend {
       this.gridCache = document.createElement("canvas");
       this.gridCache.width = Math.max(1, this.width * this.dpr);
       this.gridCache.height = Math.max(1, this.height * this.dpr);
-      this.gridCtx = setup2d(this.gridCache, true);
+      this.gridCtx = setup2d(this.gridCache, this.settings);
       this.gridCtx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     }
     const ctx = this.gridCtx as CanvasRenderingContext2D;

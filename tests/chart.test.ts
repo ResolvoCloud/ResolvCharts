@@ -204,6 +204,44 @@ describe("createChart", () => {
     chart.destroy();
   });
 
+  it("creates a combo chart", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    const chart = createChart(el, {
+      type: "combo",
+      data: {
+        categories: ["Jan", "Feb", "Mar"],
+        series: [
+          { label: "in", values: [3, 5, 4], kind: "column" },
+          { label: "out", values: [2, 1, 3], kind: "column" },
+          { label: "net", values: [1, 4, 1], kind: "area" },
+        ],
+      },
+      animate: false,
+    });
+    await wait();
+    chart.destroy();
+  });
+
+  it("creates a stacked combo chart", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    const chart = createChart(el, {
+      type: "combo",
+      stacked: true,
+      data: {
+        categories: ["Jan", "Feb"],
+        series: [
+          { label: "in", values: [3, 5], kind: "column" },
+          { label: "net", values: [1, 4], kind: "line" },
+        ],
+      },
+      animate: false,
+    });
+    await wait();
+    chart.destroy();
+  });
+
   it("creates a baseline chart", async () => {
     const el = makeEl();
     cleanup.push(el);

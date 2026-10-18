@@ -6,6 +6,7 @@ export type ChartType =
   | "line"
   | "area"
   | "bar"
+  | "combo"
   | "sparkline"
   | "scatter"
   | "donut"
@@ -58,17 +59,25 @@ export interface XYData {
 }
 
 /**
+ * Per-series render style inside a `combo` chart.
+ * @category Charts
+ */
+export type CategorySeriesKind = "column" | "line" | "area";
+
+/**
  * One series of a categorical chart.
  * @category Data
  */
 export interface CategorySeriesInput {
   label?: string;
   color?: string;
+  /** For `combo`: how this series renders (default `"column"`). */
+  kind?: CategorySeriesKind;
   values: ArrayLike<number>;
 }
 
 /**
- * Data for `bar` charts (one entry per `categories` element).
+ * Data for `bar` and `combo` charts (one entry per `categories` element).
  * @category Data
  */
 export interface CategoryData {
@@ -155,6 +164,8 @@ export type HoverInfo =
       px: number;
       py: number;
       values: { label: string; color: string; y: number }[];
+      /** Tooltip title override (e.g. category name on `combo` charts). */
+      title?: string;
     }
   | {
       kind: "bar";
@@ -248,6 +259,14 @@ export interface ChartOptions {
     compat?: boolean;
     timing?: boolean;
   };
+  /**
+   * Canvas2D context settings passed to `getContext("2d", …)` for all layers.
+   * e.g. `{ willReadFrequently: true }` measurably cuts submit cost in Chrome
+   * (~2×) by forcing CPU rasterization — useful for small/dense charts;
+   * leave unset (default `{ alpha: true }`) to keep GPU compositing.
+   * @category Charts
+   */
+  canvas?: CanvasRenderingContext2DSettings;
   /** For `bar`: stack series per category instead of grouping. */
   stacked?: boolean;
   /** For `baseline`: reference value the line is compared against (default: first point). */
@@ -303,6 +322,7 @@ export interface NormalizedCategory {
   series: {
     label: string;
     color: string;
+    kind: CategorySeriesKind;
     values: Float64Array;
     prevValues: Float64Array | null;
   }[];
