@@ -10,3 +10,5 @@ site/dist
 site/.astro
 .astro
 site/src/content/docs/api
+.npmrc
+.env
