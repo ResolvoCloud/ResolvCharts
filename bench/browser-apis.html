@@ -60,7 +60,7 @@ function alphaFalsePatch() {
   HTMLCanvasElement.prototype.getContext = function (kind, opts) {
     if (kind === "2d") {
       const isOverlay = this.style.pointerEvents === "none";
-      const alpha = !isOverlay && !mainDone ? false : true;
+      const alpha = !(!isOverlay && !mainDone);
       if (!isOverlay && !mainDone) mainDone = true;
       return origGetContext.call(this, kind, { ...opts, alpha });
     }

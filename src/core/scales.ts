@@ -57,3 +57,13 @@ export function padDomain(
   }
   return [lo, hi];
 }
+
+/** @category Utilities
+ * Pin domain ends — each defined bound overrides the fitted value. */
+export function boundDomain(
+  dom: [number, number],
+  min?: number,
+  max?: number,
+): [number, number] {
+  return [min ?? dom[0], max ?? dom[1]];
+}

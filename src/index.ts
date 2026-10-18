@@ -2,7 +2,7 @@ export { Chart, createChart } from "./core/chart";
 export { decimateM4 } from "./core/decimate";
 export { formatNumber, formatSI } from "./core/format";
 export { nearestIndex } from "./core/hit";
-export { extent, linearScale, padDomain } from "./core/scales";
+export { boundDomain, extent, linearScale, padDomain } from "./core/scales";
 export { darkTheme, lightTheme, resolveTheme } from "./core/theme";
 export { computeTicks } from "./core/ticks";
 export type {

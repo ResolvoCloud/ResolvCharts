@@ -3,16 +3,15 @@ import { hitBaseline, renderBaseline } from "../charts/baseline";
 import { hitCandle, renderCandles } from "../charts/candle";
 import { hitCombo, renderCombo } from "../charts/combo";
 import { hitDonut, renderDonut } from "../charts/donut";
-import { FLOW_RIPPLE, hitXY, renderLine, seriesPoints } from "../charts/line";
+import { FLOW_RIPPLE, hitXY, renderLine } from "../charts/line";
 import type { RenderContext } from "../charts/registry";
 import { hitScatter, renderScatter } from "../charts/scatter";
 import { hitSparkline, renderSparkline } from "../charts/sparkline";
 import { hitWaterfall, renderWaterfall } from "../charts/waterfall";
 import { CanvasBackend } from "./canvas";
 import { withAlpha } from "./color";
-import { mapSeriesPx } from "./decimate";
 import { formatSI } from "./format";
-import { extent, linearScale, padDomain } from "./scales";
+import { boundDomain, extent, linearScale, padDomain } from "./scales";
 import { easeOutCubic, sharedScheduler } from "./scheduler";
 import { resolveTheme, seriesColor } from "./theme";
 import { computeTicks } from "./ticks";
@@ -116,6 +115,8 @@ const GPU_KIND: Partial<Record<ChartType, "line" | "area" | "points">> = {
 };
 /** points retained beyond the window's left edge so they slide off-screen instead of vanishing mid-plot */
 const EDGE_KEEP = 3;
+/** default point count at which `renderer: "auto"` engages the GPU path */
+const GPU_THRESHOLD = 100_000;
 
 /** Chart instance. Create via {@link createChart}.
  * @category Charts
@@ -147,6 +148,9 @@ export class Chart {
   private destroyed = false;
   private pendingView = false;
   private gpu: import("../gpu/series").GpuSeries | null = null;
+  private gpuInit = false;
+  /** bumped whenever xy data is replaced or reordered — triggers GPU re-upload */
+  private dataRev = 0;
   private lastAppendAt = 0;
   private estInterval = 400;
   private onScroll = (): void => {
@@ -203,32 +207,47 @@ export class Chart {
     const wantTooltip = options.tooltip ?? this.mod.defaultTooltip;
     if (wantTooltip) this.tooltip = new Tooltip(el, this.theme);
     this.data = this.normalize(options.data, null);
-    const wantGpu =
-      GPU_KIND[options.type] &&
-      (options.renderer === "webgpu" || options.renderer === "auto");
-    if (wantGpu) {
-      void import("../gpu/series").then(({ GpuSeries }) =>
-        GpuSeries.create(options.gpu).then((g) => {
-          if (!g || this.destroyed) {
-            g?.destroy();
-            return;
-          }
-          g.setSize(this.backend.width, this.backend.height, this.backend.dpr);
-          this.backend.overlayCanvas.before(g.canvas);
-          this.gpu = g;
-          sharedScheduler.add((now) => {
-            this.render(1);
-            void now;
-            return false;
-          });
-        }),
-      );
-    }
+    this.maybeInitGpu();
     this.bindEvents();
     const dom = this.layout();
     this.view = { x: [...dom.x], y: [...dom.y] };
     this.viewTo = { x: [...dom.x], y: [...dom.y] };
     this.startAnimation(dom);
+  }
+
+  /**
+   * Lazily acquire the WebGPU backend. `"webgpu"` attaches unconditionally;
+   * `"auto"` waits until the xy point count crosses `gpuThreshold` — small
+   * charts never pay adapter/device acquisition.
+   */
+  private maybeInitGpu(): void {
+    if (this.gpu || this.gpuInit || this.destroyed) return;
+    if (!GPU_KIND[this.options.type]) return;
+    const r = this.options.renderer ?? "auto";
+    if (r !== "auto" && r !== "webgpu") return;
+    if (r === "auto") {
+      const d = this.data;
+      const pts =
+        d.kind === "xy" ? d.sortedX.length * Math.max(1, d.series.length) : 0;
+      if (pts < (this.options.gpuThreshold ?? GPU_THRESHOLD)) return;
+    }
+    this.gpuInit = true;
+    void import("../gpu/series").then(({ GpuSeries }) =>
+      GpuSeries.create(this.options.gpu).then((g) => {
+        if (!g || this.destroyed) {
+          g?.destroy();
+          return;
+        }
+        g.setSize(this.backend.width, this.backend.height, this.backend.dpr);
+        this.backend.overlayCanvas.before(g.canvas);
+        this.gpu = g;
+        sharedScheduler.add((now) => {
+          this.render(1);
+          void now;
+          return false;
+        });
+      }),
+    );
   }
 
   private normalize(
@@ -453,7 +472,10 @@ export class Chart {
       }
       const includeZero =
         this.options.type === "area" || this.options.type === "sparkline";
-      return { x, y: padDomain(min, max, includeZero) };
+      return {
+        x,
+        y: this.yDomain(padDomain(min, max, includeZero)),
+      };
     }
     if (d.kind === "category") {
       let min = Infinity;
@@ -488,7 +510,10 @@ export class Chart {
         min = 0;
         max = 1;
       }
-      return { x: [0, d.categories.length], y: padDomain(min, max, true) };
+      return {
+        x: [0, d.categories.length],
+        y: this.yDomain(padDomain(min, max, true)),
+      };
     }
     if (d.kind === "ohlc") {
       const x = extent(d.x);
@@ -504,7 +529,7 @@ export class Chart {
         min = 0;
         max = 1;
       }
-      return { x, y: padDomain(min, max) };
+      return { x, y: this.yDomain(padDomain(min, max)) };
     }
     if (d.kind === "waterfall") {
       let min = Infinity;
@@ -519,10 +544,14 @@ export class Chart {
       }
       return {
         x: [0, d.bars.length],
-        y: padDomain(min, max, true),
+        y: this.yDomain(padDomain(min, max, true)),
       };
     }
-    return { x: [0, 1], y: [0, 1] };
+    return { x: [0, 1], y: this.yDomain([0, 1]) };
+  }
+
+  private yDomain(y: [number, number]): [number, number] {
+    return boundDomain(y, this.options.yMin, this.options.yMax);
   }
 
   private lerpView(eased: number): void {
@@ -663,7 +692,11 @@ export class Chart {
     if (this.hover) this.drawHover(this.hover, scales.yScale);
   }
 
-  /** series rasterization on the GPU; grid/labels/hover stay on Canvas2D */
+  /**
+   * Series rasterization on the GPU; grid/labels/hover stay on Canvas2D.
+   * Raw data lives in GPU buffers — the per-frame cost is uniform writes +
+   * instanced draws, with compute decimation above the density threshold.
+   */
   private gpuRender(
     t: number,
     scales: {
@@ -674,34 +707,25 @@ export class Chart {
     const g = this.gpu;
     const d = this.data;
     const kind = GPU_KIND[this.options.type];
-    if (!g || !kind || d.kind !== "xy") {
+    if (!g || g.unavailable || !kind || d.kind !== "xy") {
       this.mod.render(this.renderContext(t, scales));
       return;
     }
-    const r = this.renderContext(t, scales);
+    g.syncData(d, this.dataRev);
+    const view = { x: scales.xScale.domain, y: scales.yScale.domain };
     const flow = this.options.flow ? FLOW_RIPPLE : 0;
-    g.begin(this.backend.plot);
-    for (const s of d.series) {
+    g.begin(this.backend.plot, t, flow);
+    for (let i = 0; i < d.series.length; i++) {
+      const s = d.series[i];
+      if (!s) continue;
       if (kind === "points") {
-        const pts = mapSeriesPx(
-          d.sortedX,
-          s.y,
-          s.prevY,
-          t,
-          scales.yScale.domain[0],
-          scales.xScale,
-          scales.yScale,
-          flow,
-        );
-        g.points(pts, s.color, 2.5, 0.65);
+        g.points(i, s.color, 2.5, 0.65, view);
         continue;
       }
-      const pts = seriesPoints(r, s);
       if (kind === "area") {
-        const base = scales.yScale(Math.max(0, scales.yScale.domain[0]));
-        g.area(pts, s.color, base, this.backend.plot);
+        g.area(i, s.color, Math.max(0, scales.yScale.domain[0]), view);
       }
-      g.line(pts, s.color, 2);
+      g.line(i, s.color, 2, view);
     }
     g.end();
   }
@@ -858,6 +882,8 @@ export class Chart {
   setData(data: ChartData): void {
     const prev = this.data;
     this.data = this.normalize(data, prev);
+    this.dataRev++;
+    this.maybeInitGpu();
     const dom = this.layout();
     this.startAnimation(dom);
   }
@@ -944,8 +970,24 @@ export class Chart {
     });
 
     const nd: NormalizedXY = { kind: "xy", sortedX, series };
-    if (m > 1 && x < (sortedX[m - 2] as number)) resortXY(nd);
+    const resort = m > 1 && x < (sortedX[m - 2] as number);
+    if (resort) resortXY(nd);
     this.data = nd;
+    if (resort) {
+      this.dataRev++;
+    } else if (this.gpu && !this.gpu.unavailable) {
+      // ring-buffer path: only the appended tail reaches the GPU. s.y[n-1]
+      // still holds the pre-append tail value (steady state shifts in place),
+      // which is what the new point animates up from
+      const ok = this.gpu.appended(
+        x,
+        d.series.map((s, i) => ys[i] ?? (s.y[n - 1] as number)),
+        d.series.map((s) => s.y[n - 1] as number),
+        drop,
+      );
+      if (!ok) this.dataRev++;
+    }
+    this.maybeInitGpu();
     this.pendingView = true;
     sharedScheduler.add(this.frame);
   }

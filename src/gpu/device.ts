@@ -4,6 +4,11 @@ export interface GpuRequestOptions {
   compat?: boolean;
   /** request "timestamp-query" when the adapter supports it */
   timing?: boolean;
+  /**
+   * Accept software (fallback) adapters such as SwiftShader. Off by default:
+   * a CPU-rasterized GPU device is usually slower than the Canvas2D path.
+   */
+  allowFallback?: boolean;
 }
 
 /** Shared GPUDevice across charts — adapters/devices are expensive to acquire. */
@@ -16,24 +21,41 @@ export function getGpuDevice(
   let p = cache.get(key);
   if (!p) {
     p = (async (): Promise<GPUDevice | null> => {
-      const nav = typeof navigator === "undefined" ? null : navigator;
-      const gpu = (nav as Navigator | null)?.gpu;
-      if (!gpu) return null;
-      const req: GPURequestAdapterOptions = {};
-      if (opts.powerPreference && opts.powerPreference !== "default") {
-        req.powerPreference = opts.powerPreference;
+      try {
+        const nav = typeof navigator === "undefined" ? null : navigator;
+        const gpu = (nav as Navigator | null)?.gpu;
+        if (!gpu) return null;
+        const req: GPURequestAdapterOptions = {};
+        if (opts.powerPreference && opts.powerPreference !== "default") {
+          req.powerPreference = opts.powerPreference;
+        }
+        if (opts.compat) {
+          (req as { featureLevel?: "compatibility" }).featureLevel =
+            "compatibility";
+        }
+        // Firefox rejects requestAdapter() (instead of returning null) on
+        // platforms where WebGPU isn't shipped — the catch treats both
+        // outcomes as "unavailable"
+        const adapter = await gpu.requestAdapter(req);
+        if (!adapter) return null;
+        if (
+          !opts.allowFallback &&
+          (adapter as { isFallbackAdapter?: boolean }).isFallbackAdapter
+        ) {
+          return null;
+        }
+        const requiredFeatures: GPUFeatureName[] = [];
+        if (opts.timing && adapter.features.has("timestamp-query")) {
+          requiredFeatures.push("timestamp-query");
+        }
+        const device = await adapter.requestDevice({ requiredFeatures });
+        // evict on loss so the next getGpuDevice() re-requests a fresh
+        // adapter+device (all GpuSeries instances share this cache entry)
+        device.lost.then(() => cache.delete(key));
+        return device;
+      } catch {
+        return null;
       }
-      if (opts.compat) {
-        (req as { featureLevel?: "compatibility" }).featureLevel =
-          "compatibility";
-      }
-      const adapter = await gpu.requestAdapter(req);
-      if (!adapter) return null;
-      const requiredFeatures: GPUFeatureName[] = [];
-      if (opts.timing && adapter.features.has("timestamp-query")) {
-        requiredFeatures.push("timestamp-query");
-      }
-      return adapter.requestDevice({ requiredFeatures });
     })();
     p.catch(() => cache.delete(key));
     cache.set(key, p);

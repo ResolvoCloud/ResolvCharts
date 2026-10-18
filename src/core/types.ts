@@ -240,24 +240,35 @@ export interface ChartOptions {
 
   /**
    * Render backend for xy series (line/area/sparkline/scatter). `"canvas"`
-   * (default) uses Canvas2D. `"webgpu"` rasterizes series on the GPU —
-   * instanced lines and point sprites — while axes, grid, and tooltips stay
-   * on Canvas2D. `"auto"` uses WebGPU when available, else Canvas2D.
+   * uses Canvas2D. `"webgpu"` rasterizes series on the GPU — instanced
+   * lines, point sprites, compute decimation — while axes, grid, and
+   * tooltips stay on Canvas2D. `"auto"` (default) engages WebGPU once the
+   * point count crosses `gpuThreshold`, else Canvas2D.
    * Unknown to older browsers → silent fallback to Canvas2D.
    */
   renderer?: "auto" | "canvas" | "webgpu";
+  /**
+   * For `renderer: "auto"`: total visible xy points (x-length × series) at
+   * which the GPU path engages. Below this, Canvas2D is faster. Once the
+   * GPU attaches it stays attached for the chart's lifetime.
+   * Default: 100,000.
+   */
+  gpuThreshold?: number;
   /**
    * WebGPU adapter options — only used when `renderer` resolves to WebGPU.
    * `powerPreference` picks the discrete GPU on dual-GPU systems;
    * `compat` requests compatibility mode (GLES 3.1 / D3D11 reach);
    * `timing` enables GPU-side pass timing via "timestamp-query" when the
-   * adapter supports it (note: browsers quantize to ~100 µs unless the
-   * WebGPU developer-features flag is enabled).
+   * adapter supports it (note: browsers require cross-origin isolation and
+   * quantize to ~100 µs — dev/profiling use only);
+   * `allowFallback` accepts software adapters like SwiftShader (off by
+   * default — usually slower than Canvas2D).
    */
   gpu?: {
     powerPreference?: "default" | "low-power" | "high-performance";
     compat?: boolean;
     timing?: boolean;
+    allowFallback?: boolean;
   };
   /**
    * Canvas2D context settings passed to `getContext("2d", …)` for all layers.
@@ -278,6 +289,14 @@ export interface ChartOptions {
     x?: (v: number) => string;
     y?: (v: number) => string;
   };
+  /**
+   * Pin the y-axis domain. Each bound overrides the auto-fitted value —
+   * unset ends still auto-fit. E.g. `{ yMin: 0, yMax: 100 }` frames a
+   * utilization chart honestly; `{ yMin: 0 }` zero-anchors without a
+   * ceiling. Values exceeding the bounds are clipped at the plot edge.
+   */
+  yMin?: number;
+  yMax?: number;
   /** Called on pointer hover with the nearest hit, or `null` on leave. */
   onHover?: (info: HoverInfo | null) => void;
 }

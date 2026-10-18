@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { extent, linearScale, padDomain } from "../src/core/scales";
+import {
+  boundDomain,
+  extent,
+  linearScale,
+  padDomain,
+} from "../src/core/scales";
 
 describe("linearScale", () => {
   it("maps domain to range", () => {
@@ -49,5 +54,21 @@ describe("padDomain", () => {
   it("negative domain pads below zero", () => {
     const [a] = padDomain(-50, -10, true);
     expect(a).toBeLessThan(-50);
+  });
+});
+
+describe("boundDomain", () => {
+  it("pins both ends", () => {
+    expect(boundDomain([3.5, 20], 0, 100)).toEqual([0, 100]);
+  });
+  it("unset ends keep the fitted value", () => {
+    expect(boundDomain([3.5, 20], 0)).toEqual([0, 20]);
+    expect(boundDomain([3.5, 20], undefined, 100)).toEqual([3.5, 100]);
+  });
+  it("no bounds returns the domain unchanged", () => {
+    expect(boundDomain([3.5, 20])).toEqual([3.5, 20]);
+  });
+  it("can shrink below the data extent", () => {
+    expect(boundDomain([0, 200], 0, 100)).toEqual([0, 100]);
   });
 });

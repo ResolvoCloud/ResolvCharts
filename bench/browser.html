@@ -8,17 +8,8 @@
 <script type="module">
 import { createChart } from "../dist/index.mjs";
 
-const N = 100_000;
-const xs = new Float64Array(N);
-const ys = new Float64Array(N);
-const ys2 = new Float64Array(N);
-for (let i = 0; i < N; i++) {
-  xs[i] = i;
-  ys[i] = 50 + 30 * Math.sin(i / 500) + (i % 17);
-  ys2[i] = 60 + 20 * Math.cos(i / 300) + (i % 13);
-}
-
 function stats(a) {
+  if (!a.length) return null;
   const s = [...a].sort((x, y) => x - y);
   const p = (q) => s[Math.min(s.length - 1, Math.floor(q * s.length))];
   return {
@@ -33,9 +24,21 @@ function stats(a) {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const frame = () => new Promise((r) => requestAnimationFrame(r));
 
+function makeData(N) {
+  const xs = new Float64Array(N);
+  const ys = new Float64Array(N);
+  const ys2 = new Float64Array(N);
+  for (let i = 0; i < N; i++) {
+    xs[i] = i;
+    ys[i] = 50 + 30 * Math.sin(i / 500) + (i % 17);
+    ys2[i] = 60 + 20 * Math.cos(i / 300) + (i % 13);
+  }
+  return { x: xs, series: [{ y: ys }, { y: ys2 }] };
+}
+
 // measure the JS-side render() call directly (chart.render is ts-private,
 // runtime-accessible) — for canvas this is the raster submit cost too
-async function measureRender(type, renderer, gpuOpts, frames = 120) {
+async function measureRender(type, renderer, gpuOpts, N, frames = 120) {
   const el = document.querySelector("#c");
   el.innerHTML = "";
   const ch = createChart(el, {
@@ -44,10 +47,10 @@ async function measureRender(type, renderer, gpuOpts, frames = 120) {
     gpu: gpuOpts,
     animate: false,
     tooltip: false,
-    data: { x: xs, series: [{ y: ys }, { y: ys2 }] },
+    data: makeData(N),
   });
-  await sleep(300); // let webgpu init + first paint settle
-  const gpuActive = !!ch.gpu; // confirm the gpu backend actually attached
+  await sleep(400); // let webgpu init + first paint settle
+  const gpuActive = !!ch.gpu && !ch.gpu.unavailable;
   const times = [];
   const gpuTimes = [];
   for (let i = 0; i < frames; i++) {
@@ -57,57 +60,78 @@ async function measureRender(type, renderer, gpuOpts, frames = 120) {
     if (ch.gpu?.gpuMs != null) gpuTimes.push(ch.gpu.gpuMs);
     await frame(); // let the browser composite before next iteration
   }
-  const ai = ch.gpu?.device?.adapterInfo;
-  const adapterInfo = ai
-    ? {
-        vendor: ai.vendor,
-        architecture: ai.architecture,
-        device: ai.device,
-        description: ai.description,
-        backend: ai.backend,
-      }
-    : null;
   ch.destroy();
-  return { submit: stats(times), gpuNs: gpuTimes.length ? stats(gpuTimes) : null, gpuActive, adapterInfo };
+  return { submit: stats(times), gpuMs: gpuTimes.length ? stats(gpuTimes) : null, gpuActive };
 }
 
+// streaming A/B: append on every rAF for `ms`, report achieved fps + per-frame
+// JS cost of append+render
+async function measureStream(renderer, N, ms = 3000) {
+  const el = document.querySelector("#c");
+  el.innerHTML = "";
+  const win = Math.min(N, 50_000);
+  const data = makeData(win);
+  const ch = createChart(el, {
+    type: "line",
+    renderer,
+    flow: true,
+    animate: false,
+    window: win,
+    tooltip: false,
+    data: { x: data.x, series: data.series },
+  });
+  await sleep(400);
+  const gpuActive = !!ch.gpu && !ch.gpu.unavailable;
+  let frames = 0;
+  let x = win;
+  let v = 50;
+  const appendTimes = [];
+  const t0 = performance.now();
+  while (performance.now() - t0 < ms) {
+    await frame();
+    v += Math.random() * 4 - 2;
+    const a = performance.now();
+    ch.append(x++, v);
+    appendTimes.push(performance.now() - a);
+    frames++;
+  }
+  const elapsed = performance.now() - t0;
+  ch.destroy();
+  return { fps: (frames / elapsed) * 1000, appendMs: stats(appendTimes), gpuActive };
+}
+
+// pan/zoom A/B: hold N points, sweep the view window via setData-free view
+// morph — approximates zoom cost. We emulate by re-creating scales each frame
+// through window resize of the domain: simplest honest proxy is a wheel-style
+// window change via append; instead measure render while view animates.
 window.runBench = async () => {
-  const out = { gpu: !!navigator.gpu };
-  // adapter info probe
+  const out = { gpu: !!navigator.gpu, dpr: window.devicePixelRatio };
   const infoOf = (a) =>
     a
       ? {
           vendor: a.info.vendor,
           architecture: a.info.architecture,
-          device: a.info.device,
-          description: a.info.description,
-          backend: a.info.backend,
-          subgroupMinSize: a.info.subgroupMinSize,
-          subgroupMaxSize: a.info.subgroupMaxSize,
           isFallbackAdapter: a.isFallbackAdapter,
         }
       : null;
   if (navigator.gpu) {
-    const adapter = await navigator.gpu.requestAdapter();
+    const adapter = await navigator.gpu.requestAdapter().catch(() => null);
     out.adapter = infoOf(adapter);
     out.adapterFeatures = adapter ? [...adapter.features] : [];
     const compat = await navigator.gpu
       .requestAdapter({ featureLevel: "compatibility" })
       .catch(() => null);
     out.compatAdapter = infoOf(compat);
-    const hiperf = await navigator.gpu
-      .requestAdapter({ powerPreference: "high-performance" })
-      .catch(() => null);
-    out.hiperfAdapter = infoOf(hiperf);
   }
-  for (const type of ["line", "scatter"]) {
-    out[`render:${type}/canvas`] = await measureRender(type, "canvas");
-    out[`render:${type}/gpu`] = await measureRender(type, "webgpu", { timing: true });
-    out[`render:${type}/gpu-compat`] = await measureRender(type, "webgpu", { compat: true });
-    out[`render:${type}/gpu-hiperf`] = await measureRender(type, "webgpu", {
-      powerPreference: "high-performance",
-    });
+  for (const N of [100_000, 1_000_000, 5_000_000]) {
+    out[`render:line/${N}/canvas`] = await measureRender("line", "canvas", null, N);
+    out[`render:line/${N}/webgpu`] = await measureRender("line", "webgpu", { timing: true }, N);
+    out[`render:line/${N}/auto`] = await measureRender("line", "auto", { timing: true }, N);
   }
+  out["render:scatter/1M/canvas"] = await measureRender("scatter", "canvas", null, 1_000_000);
+  out["render:scatter/1M/webgpu"] = await measureRender("scatter", "webgpu", null, 1_000_000);
+  out["stream:line/50k-window/canvas"] = await measureStream("canvas", 50_000);
+  out["stream:line/50k-window/webgpu"] = await measureStream("webgpu", 50_000);
   return out;
 };
 
