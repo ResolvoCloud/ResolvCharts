@@ -4,7 +4,7 @@ dist
 .changeset/*.md
 !.changeset/README.md
 .bench-out
-docs
+/docs
 .playwright-mcp
 site/dist
 site/.astro

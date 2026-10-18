@@ -1,0 +1,39 @@
+---
+title: ResolvCharts
+description: Minimal, zero-dependency canvas charting library with optional WebGPU rendering.
+template: splash
+hero:
+  tagline: Charts that stay smooth — even with 100k live datapoints.
+  actions:
+    - text: Get started
+      link: ./guides/getting-started/
+      icon: right-arrow
+      variant: primary
+    - text: API reference
+      link: ./api/
+      icon: open-book
+---
+
+## Quick start
+
+```ts
+import { createChart } from "resolvcharts";
+
+const chart = createChart(document.querySelector("#chart"), {
+  type: "line",
+  curve: "smooth",
+  flow: true, // continuous, water-like motion on live data
+  window: 30, // sliding view
+  maxPoints: 200, // hard memory cap
+  data: { x: xs, series: [{ label: "CPU %", y: ys }] },
+});
+
+chart.append(Date.now(), value); // streams smoothly, zero-alloc steady state
+```
+
+## Why
+
+- **Zero dependencies** — ~15 kB gzipped ESM.
+- **Fast** — typed arrays, M4 raster-perfect decimation, zero-alloc live append.
+- **10 chart types** — line, area, bar, combo, sparkline, scatter, donut, candle, ohlc, waterfall, baseline.
+- **Optional WebGPU** — `renderer: "auto"` rasterizes series on the GPU; axes, grid and tooltips stay on Canvas2D.
