@@ -6,3 +6,6 @@ dist
 .bench-out
 docs
 .playwright-mcp
+site/dist
+site/.astro
+.astro

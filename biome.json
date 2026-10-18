@@ -1,6 +1,15 @@
 {
   "files": {
-    "includes": ["**", "!dist", "!.cdn-tmp", "!.bench-out", "!docs", "!*.png"]
+    "includes": [
+      "**",
+      "!dist",
+      "!.cdn-tmp",
+      "!.bench-out",
+      "!docs",
+      "!site/dist",
+      "!**/.astro",
+      "!*.png"
+    ]
   },
   "formatter": {
     "enabled": true,

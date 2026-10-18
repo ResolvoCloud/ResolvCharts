@@ -13,7 +13,13 @@ At [Resolvo Cloud](https://resolvocloud.com), we experienced glitchy live charts
 npm install resolvcharts
 ```
 
-## Usage
+Or drop in the CDN build (exposes a global `ResolvCharts`):
+
+```html
+<script src="https://unpkg.com/resolvcharts/dist/resolvcharts.global.min.js"></script>
+```
+
+## Quick start
 
 ```ts
 import { createChart } from "resolvcharts";
@@ -27,30 +33,30 @@ const chart = createChart(document.querySelector("#chart")!, {
 });
 ```
 
-Chart types: `line`, `area`, `bar` (grouped or `stacked`), `combo`, `sparkline`, `scatter`, `donut`, `candle`, `ohlc`, `waterfall`, `baseline`.
+## Chart types
+
+The `data` shape depends on `type` — pick the row you need:
+
+| `type` | `data` shape | Use case |
+|---|---|---|
+| `line` | `{ x, series: [{ y }] }` | Trends over an x axis |
+| `area` | `{ x, series: [{ y }] }` | Line + filled gradient |
+| `baseline` | `{ x, series: [{ y }] }` | Delta vs a reference value |
+| `sparkline` | `{ x, series: [{ y }] }` | Tiny inline chart, no axes |
+| `scatter` | `{ x, series: [{ y }] }` | Point clouds |
+| `bar` | `{ categories, series: [{ values }] }` | Categorical groups; `stacked` supported |
+| `combo` | `{ categories, series: [{ values, kind }] }` | Columns + line/area overlay |
+| `donut` | `{ slices: [{ label, value }] }` | Share of a total |
+| `candle` / `ohlc` | `{ candles: [{ x, open, high, low, close, volume? }] }` | Financial OHLC (+ volume band) |
+| `waterfall` | `{ categories, values, totals? }` | P&L bridges, signed deltas |
+
+## Examples
 
 ```ts
-// Candlestick (+ optional volume band)
+// Bar
 createChart(el, {
-  type: "candle",  // or "ohlc" for bar-style
-  data: { candles: [{ x: 0, open: 100, high: 108, low: 98, close: 105, volume: 1200 }] },
-});
-
-// Waterfall — P&L bridge. Signed deltas; `totals` marks absolute columns.
-createChart(el, {
-  type: "waterfall",
-  data: {
-    categories: ["Revenue", "COGS", "Gross", "Opex", "Net"],
-    values: [500, -180, 320, -140, 135],
-    totals: [2, 4],
-  },
-});
-
-// Baseline delta — green above reference, red below
-createChart(el, {
-  type: "baseline",
-  baseline: 0,   // default: first value
-  data: { x: [0, 1, 2], series: [{ y: [-2, 4, -1] }] },
+  type: "bar",
+  data: { categories: ["Q1", "Q2", "Q3"], series: [{ label: "Sales", values: [4, 7, 5] }] },
 });
 
 // Stacked bar (negative values stack below zero)
@@ -72,13 +78,28 @@ createChart(el, {
     ],
   },
 });
-```
 
-```ts
-// Bar
+// Candlestick (+ optional volume band); "ohlc" renders bar-style
 createChart(el, {
-  type: "bar",
-  data: { categories: ["Q1", "Q2", "Q3"], series: [{ label: "Sales", values: [4, 7, 5] }] },
+  type: "candle",
+  data: { candles: [{ x: 0, open: 100, high: 108, low: 98, close: 105, volume: 1200 }] },
+});
+
+// Waterfall — P&L bridge. Signed deltas; `totals` marks absolute columns.
+createChart(el, {
+  type: "waterfall",
+  data: {
+    categories: ["Revenue", "COGS", "Gross", "Opex", "Net"],
+    values: [500, -180, 320, -140, 135],
+    totals: [2, 4],
+  },
+});
+
+// Baseline delta — green above reference, red below
+createChart(el, {
+  type: "baseline",
+  baseline: 0,   // default: first value
+  data: { x: [0, 1, 2], series: [{ y: [-2, 4, -1] }] },
 });
 
 // Donut
@@ -90,29 +111,60 @@ createChart(el, {
 
 ## Options
 
+Universal:
+
 | Option | Default | Description |
 |---|---|---|
-| `type` | — | `line` `area` `bar` `combo` `sparkline` `scatter` `donut` `candle` `ohlc` `waterfall` `baseline` |
-| `data` | — | `{x, series}` · `{categories, series}` · `{slices}` · `{candles}` · waterfall shape |
+| `type` | — | Any row in the table above |
+| `data` | — | Matching shape from the table above |
 | `theme` | `"light"` | `"light"` `"dark"` or partial token object |
 | `accent` | — | Primary series color |
 | `curve` | `"linear"` | `linear` `step` `smooth` (monotone cubic, never overshoots) |
 | `grid` | `true` | Faint horizontal gridlines |
 | `tooltip` | auto | Hover tooltip (off for sparkline) |
+| `legend` | — | Reserved |
 | `animate` | `true` | `true` = 400 ms, a number = custom ms; respects `prefers-reduced-motion` |
-| `flow` | `false` | Continuous-flow mode for xy charts — ripple easing + tween duration auto-follows append cadence |
-| `window` | — | Visible points in the sliding window (xy charts) |
-| `maxPoints` | — | Hard cap on retained datapoints during `append()`; shows last N when `window` is unset |
-| `stacked` | `false` | Bar/combo charts: stack column series per category |
-| `baseline` | first value | Baseline chart reference value |
 | `height` | — | Chart height in px |
 | `labels` | — | `{x?: (v)=>string, y?: (v)=>string}` tick formatters |
 | `onHover` | — | `(info \| null) => void` |
 
+xy charts (`line` `area` `scatter` `sparkline` `baseline`):
+
+| Option | Default | Description |
+|---|---|---|
+| `flow` | `false` | Continuous-flow mode — ripple easing + tween duration auto-follows append cadence |
+| `window` | — | Visible points in the sliding window |
+| `maxPoints` | — | Hard cap on retained datapoints during `append()`; shows last N when `window` is unset |
+| `renderer` | `"canvas"` | `"webgpu"` rasterizes series on the GPU; `"auto"` uses it when available |
+| `gpu` | — | WebGPU adapter options (`powerPreference`, `compat`, `timing`) |
+
+Type-specific:
+
+| Option | Default | Description |
+|---|---|---|
+| `stacked` | `false` | `bar`/`combo`: stack column series per category |
+| `baseline` | first value | `baseline` chart reference value |
+| `canvas` | — | `getContext("2d", …)` settings for all layers, e.g. `{ willReadFrequently: true }` |
+
+## Theming
+
+```ts
+createChart(el, {
+  type: "line",
+  theme: "dark",
+  // or override individual tokens:
+  // theme: { bg: "#0b0e14", grid: "#1f2430", series: ["#7aa2f7", "#9ece6a"] },
+  accent: "#7aa2f7",
+  data: { x, series },
+});
+```
+
+Tokens: `bg` `text` `textMuted` `grid` `axisBaseline` `crosshair` `series[]` `contextGray` `up` `down` `tooltipBg` `tooltipText` `tooltipMuted` `tooltipBorder` `tooltipShadow` `fontFamily`.
+
 ## API
 
 ```ts
-chart.setData(newData);  // animated transition
+chart.setData(newData);  // animated transition; shape must match `type`
 chart.append(x, y);      // streaming: append one sample (xy charts)
                          // number → single series, number[] → per-series value
 chart.resize();          // manual resize (ResizeObserver handles automatically)
