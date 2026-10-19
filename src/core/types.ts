@@ -9,7 +9,12 @@ export type ChartType =
   | "combo"
   | "sparkline"
   | "scatter"
+  | "bubble"
+  | "rangearea"
   | "donut"
+  | "pie"
+  | "radar"
+  | "funnel"
   | "candle"
   | "ohlc"
   | "waterfall"
@@ -48,9 +53,13 @@ export interface SeriesInput {
   label?: string;
   color?: string;
   y: ArrayLike<number>;
+  /** For `bubble`: per-point radius value, scaled to a pixel range. */
+  r?: ArrayLike<number>;
+  /** For `rangearea`: upper band edge; `y` is the lower edge. */
+  y2?: ArrayLike<number>;
 }
 
-/** Data for xy charts (line, area, scatter, sparkline, baseline). `x` may be unsorted — it is sorted internally.
+/** Data for xy charts (line, area, scatter, bubble, rangearea, sparkline, baseline). `x` may be unsorted — it is sorted internally.
  * @category Data
  */
 export interface XYData {
@@ -77,7 +86,7 @@ export interface CategorySeriesInput {
 }
 
 /**
- * Data for `bar` and `combo` charts (one entry per `categories` element).
+ * Data for `bar`, `combo`, `radar` and `funnel` charts (one entry per `categories` element).
  * @category Data
  */
 export interface CategoryData {
@@ -96,7 +105,7 @@ export interface DonutSlice {
 }
 
 /**
- * Data for `donut` charts.
+ * Data for `donut` and `pie` charts.
  * @category Data
  */
 export interface DonutData {
@@ -326,6 +335,11 @@ export interface NormalizedSeries {
   color: string;
   y: Float64Array;
   prevY: Float64Array | null;
+  /** `bubble` radius channel (aligned to `sortedX`). */
+  r: Float64Array | null;
+  /** `rangearea` upper edge. */
+  y2: Float64Array | null;
+  prevY2: Float64Array | null;
   pathCache: { key: string; path: Path2D } | null;
 }
 

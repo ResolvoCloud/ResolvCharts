@@ -46,9 +46,14 @@ The `data` shape depends on `type` — pick the row you need:
 | `baseline` | `{ x, series: [{ y }] }` | Delta vs a reference value |
 | `sparkline` | `{ x, series: [{ y }] }` | Tiny inline chart, no axes |
 | `scatter` | `{ x, series: [{ y }] }` | Point clouds |
+| `bubble` | `{ x, series: [{ y, r }] }` | Scatter + radius channel |
+| `rangearea` | `{ x, series: [{ y, y2 }] }` | Min–max band, confidence intervals |
 | `bar` | `{ categories, series: [{ values }] }` | Categorical groups; `stacked` supported |
 | `combo` | `{ categories, series: [{ values, kind }] }` | Columns + line/area overlay |
+| `radar` | `{ categories, series: [{ values }] }` | Multi-axis polygon comparison |
+| `funnel` | `{ categories, series: [{ values }] }` | Stage drop-off (first series) |
 | `donut` | `{ slices: [{ label, value }] }` | Share of a total |
+| `pie` | `{ slices: [{ label, value }] }` | Donut without the hole |
 | `candle` / `ohlc` | `{ candles: [{ x, open, high, low, close, volume? }] }` | Financial OHLC (+ volume band) |
 | `waterfall` | `{ categories, values, totals? }` | P&L bridges, signed deltas |
 
@@ -104,10 +109,40 @@ createChart(el, {
   data: { x: [0, 1, 2], series: [{ y: [-2, 4, -1] }] },
 });
 
-// Donut
+// Donut / pie — same data, "pie" fills to the center
 createChart(el, {
   type: "donut",
   data: { slices: [{ label: "A", value: 40 }, { label: "B", value: 60 }] },
+});
+
+// Bubble — per-point `r` scales circle radius
+createChart(el, {
+  type: "bubble",
+  data: { x: [0, 1, 2], series: [{ label: "A", y: [3, 7, 5], r: [4, 12, 8] }] },
+});
+
+// Range area — band between `y` (lower) and `y2` (upper)
+createChart(el, {
+  type: "rangearea",
+  data: { x: [0, 1, 2], series: [{ label: "Temp", y: [10, 12, 11], y2: [18, 21, 19] }] },
+});
+
+// Radar — one axis per category
+createChart(el, {
+  type: "radar",
+  data: {
+    categories: ["Speed", "Power", "Range", "Cost"],
+    series: [{ label: "A", values: [8, 6, 7, 9] }],
+  },
+});
+
+// Funnel — stage widths follow the first series' values
+createChart(el, {
+  type: "funnel",
+  data: {
+    categories: ["Visit", "Signup", "Trial", "Paid"],
+    series: [{ label: "Users", values: [4200, 1800, 620, 240] }],
+  },
 });
 ```
 
@@ -130,7 +165,7 @@ Universal:
 | `labels` | — | `{x?: (v)=>string, y?: (v)=>string}` tick formatters |
 | `onHover` | — | `(info \| null) => void` |
 
-xy charts (`line` `area` `scatter` `sparkline` `baseline`):
+xy charts (`line` `area` `scatter` `bubble` `rangearea` `sparkline` `baseline`):
 
 | Option | Default | Description |
 |---|---|---|
@@ -204,11 +239,11 @@ Same machine, browser, data, and chart size (900×240, two series). Methodology 
 
 | | resolvcharts | Chart.js 4.5 | ApexCharts 8.3 | Highcharts 13.1 |
 |---|---|---|---|---|
-| Line render, 1M pts ×2 | **0.22 ms** | 136–1380 ms | 484 ms | 248–3194 ms |
+| Line render, 1M pts ×2 | **0.20 ms** | 136–1380 ms | 484 ms | 248–3194 ms |
 | Streaming, 50k window | **120 fps** | 15 fps | 17 fps | 13 fps |
-| Bundle (gzip) | **19.5 KB** | 70.7 KB | 269.8 KB | 102.3 KB |
+| Bundle (gzip) | **21.4 KB** | 70.7 KB | 269.8 KB | 102.3 KB |
 
-Chart.js range = built-in decimation on/off; Highcharts range = WebGL boost module on/off. Even the Canvas2D fallback (3.9 ms at 1M) is ~35× faster than the best competitor configuration.
+Chart.js range = built-in decimation on/off; Highcharts range = WebGL boost module on/off. Even the Canvas2D fallback (3.5 ms at 1M) is ~39× faster than the best competitor configuration.
 
 Last benchmarked as of Oct 18, 2026
 ---

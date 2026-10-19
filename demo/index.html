@@ -2,237 +2,71 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>ResolvCharts demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>resolvcharts — examples</title>
   <style>
-    body { font-family: Inter, system-ui, sans-serif; margin: 40px auto; max-width: 860px; background: #fff; color: #1f1f1f; }
-    h1 { font-size: 18px; } h2 { font-size: 13px; color: #8a8a8a; font-weight: 500; margin: 32px 0 8px; }
-    .chart { height: 240px; } .spark { height: 32px; width: 200px; }
-    .dark { background: #0a0a0a; padding: 20px; border-radius: 8px; }
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: Inter, system-ui, sans-serif;
+      margin: 0 auto; max-width: 1100px; padding: 24px 32px 64px;
+      background: #fafafa; color: #1f1f1f;
+    }
+    header {
+      display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+      padding-bottom: 16px; border-bottom: 1px solid #e5e5e5; margin-bottom: 8px;
+    }
+    h1 { font-size: 17px; margin: 0; }
+    header p { font-size: 12px; color: #8a8a8a; margin: 0; }
+    header .spacer { flex: 1; }
+    label { font-size: 12px; color: #666; display: flex; gap: 6px; align-items: center; }
+    select {
+      font: inherit; font-size: 12px; padding: 3px 6px;
+      border: 1px solid #ddd; border-radius: 6px; background: #fff;
+    }
+    h2 { font-size: 12px; color: #8a8a8a; font-weight: 600; text-transform: uppercase;
+         letter-spacing: 0.06em; margin: 28px 0 10px; }
+    .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); }
+    .card {
+      background: #fff; border: 1px solid #e8e8e8; border-radius: 10px;
+      padding: 12px 14px; min-width: 0;
+    }
+    h3 { font-size: 13px; font-weight: 600; margin: 0 0 10px; }
+    details { margin-top: 10px; }
+    summary { font-size: 11px; color: #999; cursor: pointer; user-select: none; }
+    .card.dark { background: #0a0a0a; border-color: #222; }
+    .card.dark h3 { color: #ccc; }
+    .card.dark summary { color: #666; }
+    .chart { height: 240px; }
+    .chart.short { height: 280px; }
+    .chart.spark { height: 48px; }
+    pre {
+      font-size: 11px; line-height: 1.5; overflow-x: auto; margin: 8px 0 0;
+      background: #f6f6f6; border-radius: 6px; padding: 10px;
+    }
+    .card.dark pre { background: #161616; color: #bbb; }
   </style>
 </head>
 <body>
-  <h1>resolvcharts</h1>
-  <h2>Line</h2><div id="line" class="chart"></div>
-  <h2>Area (dark)</h2><div class="dark"><div id="area" class="chart"></div></div>
-  <h2>Bar</h2><div id="bar" class="chart"></div>
-  <h2>Scatter</h2><div id="scatter" class="chart"></div>
-  <h2>Donut</h2><div id="donut" class="chart" style="height:280px"></div>
-  <h2>Candlestick + volume</h2><div id="candle" class="chart"></div>
-  <h2>Waterfall (P&L bridge)</h2><div id="waterfall" class="chart"></div>
-  <h2>Stacked bar</h2><div id="stacked" class="chart"></div>
-  <h2>Combo — cash flow (columns + area)</h2><div id="combo" class="chart"></div>
-  <h2>Baseline delta (vs. open)</h2><div id="baseline" class="chart"></div>
-  <h2>Live stream (new point every 100ms, window = 120)</h2>
-  <div id="live" class="chart"></div>
-  <h2>CPU usage (live, every 2s)</h2>
-  <div id="cpu" class="chart"></div>
-  <h2>RAM usage (live, every 2s)</h2>
-  <div class="dark"><div id="ram" class="chart"></div></div>
-  <h2>Network throughput (live, every 2s)</h2>
-  <div id="net" class="chart"></div>
-  <h2>Sparkline</h2><div id="spark" class="spark"></div>
-  <script type="module">
-    import { createChart } from "../dist/index.mjs";
-
-    const n = 200;
-    const x = Array.from({ length: n }, (_, i) => i);
-    const y1 = x.map((i) => 50 + 30 * Math.sin(i / 12) + Math.random() * 10);
-    const y2 = x.map((i) => 40 + 25 * Math.cos(i / 15) + Math.random() * 10);
-    createChart(document.querySelector("#line"), {
-      type: "line", data: { x, series: [{ label: "A", y: y1 }, { label: "B", y: y2 }] },
-    });
-    createChart(document.querySelector("#area"), {
-      type: "area", theme: "dark", data: { x, series: [{ label: "Traffic", y: y1 }] },
-    });
-    createChart(document.querySelector("#bar"), {
-      type: "bar",
-      data: { categories: ["Q1", "Q2", "Q3", "Q4", "Q5", "Q6"], series: [{ label: "Sales", values: [42, 67, 55, 89, 73, 95] }] },
-    });
-    createChart(document.querySelector("#scatter"), {
-      type: "scatter",
-      data: { x: x.slice(0, 80), series: [{ label: "pts", y: Array.from({ length: 80 }, () => Math.random() * 100) }] },
-    });
-    createChart(document.querySelector("#donut"), {
-      type: "donut",
-      data: { slices: [
-        { label: "Search", value: 45 }, { label: "Direct", value: 25 },
-        { label: "Referral", value: 20 }, { label: "Social", value: 10 },
-      ] },
-    });
-    createChart(document.querySelector("#spark"), {
-      type: "sparkline", data: { x, series: [{ y: y2 }] },
-    });
-
-    // random-walk candles
-    let c = 100;
-    const candles = x.slice(0, 60).map((i) => {
-      const o = c;
-      c += (Math.random() - 0.48) * 8;
-      const cl = c;
-      return {
-        x: i,
-        open: o,
-        high: Math.max(o, cl) + Math.random() * 4,
-        low: Math.min(o, cl) - Math.random() * 4,
-        close: cl,
-        volume: 200 + Math.random() * 800,
-      };
-    });
-    createChart(document.querySelector("#candle"), {
-      type: "candle", data: { candles },
-    });
-    createChart(document.querySelector("#waterfall"), {
-      type: "waterfall",
-      data: {
-        categories: ["Revenue", "COGS", "Gross", "Opex", "Tax", "Net"],
-        values: [500, -180, 320, -140, -45, 135],
-        totals: [2, 5],
-      },
-    });
-    createChart(document.querySelector("#stacked"), {
-      type: "bar", stacked: true,
-      data: {
-        categories: ["Q1", "Q2", "Q3", "Q4"],
-        series: [
-          { label: "Product", values: [30, 42, 38, 51] },
-          { label: "Services", values: [20, 25, 28, 30] },
-          { label: "Other", values: [8, 12, -6, 9] },
-        ],
-      },
-    });
-    createChart(document.querySelector("#combo"), {
-      type: "combo",
-      data: {
-        categories: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
-        series: [
-          { label: "Inflow", values: [42, 55, 48, 61, 57, 70], kind: "column" },
-          { label: "Outflow", values: [30, 41, 37, 45, 52, 49], kind: "column" },
-          { label: "Net", values: [12, 14, 11, 16, 5, 21], kind: "area" },
-        ],
-      },
-    });
-    createChart(document.querySelector("#baseline"), {
-      type: "baseline",
-      data: { x, series: [{ y: y1.map((v) => v - 55) }] },
-      baseline: 0,
-    });
-
-    const live = createChart(document.querySelector("#live"), {
-      type: "line",
-      renderer: "auto", // WebGPU when available, Canvas2D otherwise
-      window: 120,
-      data: { x: x.slice(0, 60), series: [{ label: "live", y: y1.slice(0, 60) }] },
-    });
-    let t = 60;
-    setInterval(() => {
-      live.append(t, 50 + 30 * Math.sin(t / 12) + Math.random() * 10);
-      t++;
-    }, 100);
-
-    // ---- live system metrics (simulated, one sample every 2s) ----
-
-    const fmtClock = (v) => new Date(v * 1000).toLocaleTimeString();
-    const seedWindow = (n, initial) => {
-      const xs = [];
-      const ys = [];
-      const now = Math.floor(Date.now() / 1000);
-      let v = initial;
-      for (let i = n - 1; i >= 0; i--) {
-        xs.push(now - i * 2);
-        ys.push(v);
-        v += (Math.random() - 0.5) * 8;
-      }
-      return { xs, ys };
-    };
-    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-
-    // CPU: random-walk percentage with occasional spikes
-    let cpu = 38;
-    const cpuSeed = seedWindow(30, cpu);
-    const cpuChart = createChart(document.querySelector("#cpu"), {
-      type: "line",
-      renderer: "auto",
-      curve: "smooth",
-      flow: true,
-      window: 30,
-      labels: {
-        x: fmtClock,
-        y: (v) => `${Math.round(v)}%`,
-      },
-      data: { x: cpuSeed.xs, series: [{ label: "CPU", y: cpuSeed.ys }] },
-    });
-
-    // RAM: smoother drift in GB (16 GB machine)
-    let ram = 9.4;
-    const ramSeed = seedWindow(30, ram);
-    const ramChart = createChart(document.querySelector("#ram"), {
-      type: "area",
-      renderer: "auto",
-      theme: "dark",
-      accent: "#8e4ec6",
-      curve: "smooth",
-      flow: true,
-      maxPoints: 40,
-      labels: {
-        x: fmtClock,
-        y: (v) => `${v.toFixed(1)} GB`,
-      },
-      data: { x: ramSeed.xs, series: [{ label: "RAM", y: ramSeed.ys }] },
-    });
-
-    // Network: sliding-window bar chart (setData — bar charts don't append)
-    const netCats = [];
-    const netDown = [];
-    const netUp = [];
-    {
-      const now = Math.floor(Date.now() / 1000);
-      for (let i = 19; i >= 0; i--) {
-        netCats.push(new Date((now - i * 2) * 1000).toLocaleTimeString());
-        netDown.push(40 + Math.random() * 120);
-        netUp.push(10 + Math.random() * 40);
-      }
-    }
-    const netChart = createChart(document.querySelector("#net"), {
-      type: "bar",
-      stacked: true,
-      labels: { y: (v) => `${Math.round(v)} Mbps` },
-      data: {
-        categories: netCats,
-        series: [
-          { label: "Down", values: netDown, color: "#0070f3" },
-          { label: "Up", values: netUp, color: "#f5a623" },
-        ],
-      },
-    });
-
-    setInterval(() => {
-      const now = Math.floor(Date.now() / 1000);
-      // CPU: mostly drift, ~10% chance of a load spike
-      cpu =
-        Math.random() < 0.1
-          ? clamp(cpu + 25 + Math.random() * 30, 3, 98)
-          : clamp(cpu + (Math.random() - 0.52) * 10, 3, 98);
-      cpuChart.append(now, cpu);
-
-      // RAM drifts slowly toward a soft mean of ~10 GB
-      ram = clamp(ram + (10 - ram) * 0.05 + (Math.random() - 0.5) * 0.6, 2, 15.6);
-      ramChart.append(now, ram);
-
-      // Network: new bucket appended at the right edge
-      netCats.push(new Date(now * 1000).toLocaleTimeString());
-      netDown.push(40 + Math.random() * 120);
-      netUp.push(10 + Math.random() * 40);
-      netCats.shift();
-      netDown.shift();
-      netUp.shift();
-      netChart.setData({
-        categories: [...netCats],
-        series: [
-          { label: "Down", values: [...netDown], color: "#0070f3" },
-          { label: "Up", values: [...netUp], color: "#f5a623" },
-        ],
-      });
-    }, 2000);
-  </script>
+  <header>
+    <h1>resolvcharts</h1>
+    <p>example gallery — every card is one <code>createChart()</code> call</p>
+    <div class="spacer"></div>
+    <label>theme
+      <select id="ui-theme">
+        <option value="light">light</option>
+        <option value="dark">dark</option>
+      </select>
+    </label>
+    <label>renderer
+      <select id="ui-renderer">
+        <option value="canvas">canvas</option>
+        <option value="auto" selected>auto</option>
+        <option value="webgpu">webgpu</option>
+      </select>
+    </label>
+  </header>
+  <main id="root"></main>
+  <script type="module" src="./demo.js"></script>
 </body>
 </html>

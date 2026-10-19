@@ -255,6 +255,127 @@ describe("createChart", () => {
     chart.destroy();
   });
 
+  it("creates a pie chart", async () => {
+    const el = makeEl(300, 300);
+    cleanup.push(el);
+    const chart = createChart(el, {
+      type: "pie",
+      data: {
+        slices: [
+          { label: "A", value: 40 },
+          { label: "B", value: 35 },
+          { label: "C", value: 25 },
+        ],
+      },
+      animate: false,
+    });
+    await wait();
+    chart.destroy();
+  });
+
+  it("creates a bubble chart", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    const chart = createChart(el, {
+      type: "bubble",
+      data: {
+        x: [0, 1, 2, 3],
+        series: [{ y: [1, 5, 3, 8], r: [4, 10, 6, 14] }],
+      },
+      animate: false,
+    });
+    await wait();
+    chart.destroy();
+  });
+
+  it("creates a rangearea chart", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    const chart = createChart(el, {
+      type: "rangearea",
+      data: {
+        x: [0, 1, 2, 3],
+        series: [{ y: [1, 3, 2, 5], y2: [4, 7, 6, 9] }],
+      },
+      animate: false,
+    });
+    await wait();
+    chart.destroy();
+  });
+
+  it("rangearea includes y2 in the y domain", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    const chart = createChart(el, {
+      type: "rangearea",
+      data: {
+        x: [0, 1, 2],
+        series: [{ y: [10, 11, 10], y2: [90, 95, 92] }],
+      },
+      animate: false,
+    });
+    await wait();
+    chart.destroy();
+  });
+
+  it("creates a radar chart", async () => {
+    const el = makeEl(300, 300);
+    cleanup.push(el);
+    const chart = createChart(el, {
+      type: "radar",
+      data: {
+        categories: ["Speed", "Power", "Range", "Weight", "Cost"],
+        series: [{ label: "A", values: [8, 6, 7, 5, 9] }],
+      },
+      animate: false,
+    });
+    await wait();
+    chart.destroy();
+  });
+
+  it("creates a funnel chart", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    const chart = createChart(el, {
+      type: "funnel",
+      data: {
+        categories: ["Visit", "Signup", "Trial", "Paid"],
+        series: [{ label: "Users", values: [1000, 420, 180, 60] }],
+      },
+      animate: false,
+    });
+    await wait();
+    chart.destroy();
+  });
+
+  it("append keeps bubble r channel aligned", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    const chart = createChart(el, {
+      type: "bubble",
+      data: { x: [0, 1, 2], series: [{ y: [1, 2, 3], r: [4, 5, 6] }] },
+      animate: false,
+    });
+    await wait();
+    chart.append(3, 4);
+    await wait();
+    chart.destroy();
+  });
+
+  it("append keeps rangearea y2 channel aligned", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    const chart = createChart(el, {
+      type: "rangearea",
+      data: { x: [0, 1, 2], series: [{ y: [1, 2, 3], y2: [4, 5, 6] }] },
+      animate: false,
+    });
+    await wait();
+    chart.append(3, 4);
+    await wait();
+    chart.destroy();
+  });
+
   it("append throws on non-xy charts", async () => {
     const el = makeEl(300, 300);
     cleanup.push(el);

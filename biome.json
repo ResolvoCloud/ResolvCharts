@@ -8,7 +8,8 @@
       "!docs",
       "!site/dist",
       "!**/.astro",
-      "!*.png"
+      "!*.png",
+      "!**/vendor"
     ]
   },
   "formatter": {

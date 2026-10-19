@@ -2,7 +2,7 @@ import { withAlpha } from "../core/color";
 import type { HoverInfo, NormalizedCategory } from "../core/types";
 import { GAP_RATIO, MAX_BAR_W, RADIUS, topRounded } from "./bar";
 import type { RenderContext } from "./registry";
-import { smoothPath } from "./registry";
+import { traceCurve } from "./registry";
 
 type CatSeries = NormalizedCategory["series"][number];
 
@@ -11,23 +11,7 @@ let ovScratch = new Float64Array(0);
 
 function overlayPath(r: RenderContext, pts: Float64Array, n: number): Path2D {
   const path = new Path2D();
-  if (n === 0) return path;
-  const curve = r.opts.curve ?? "linear";
-  if (curve === "step") {
-    path.moveTo(pts[0] as number, pts[1] as number);
-    for (let i = 1; i < n; i++) {
-      const x = pts[2 * i] as number;
-      path.lineTo(x, pts[2 * i - 1] as number);
-      path.lineTo(x, pts[2 * i + 1] as number);
-    }
-  } else if (curve === "smooth") {
-    smoothPath(path, pts, n);
-  } else {
-    path.moveTo(pts[0] as number, pts[1] as number);
-    for (let i = 1; i < n; i++) {
-      path.lineTo(pts[2 * i] as number, pts[2 * i + 1] as number);
-    }
-  }
+  traceCurve(path, pts, n, r.opts.curve ?? "linear");
   return path;
 }
 

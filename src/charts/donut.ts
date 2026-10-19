@@ -6,6 +6,10 @@ const INNER = 0.65;
 const GAP = 0.015;
 const START = -Math.PI / 2;
 
+/** donut keeps a center hole; pie fills to the middle */
+const innerRatio = (r: RenderContext): number =>
+  r.opts.type === "pie" ? 0 : INNER;
+
 export interface DonutGeo {
   cx: number;
   cy: number;
@@ -22,7 +26,7 @@ export function donutGeometry(
   const cx = r.plot.x + r.plot.w / 2;
   const cy = r.plot.y + r.plot.h / 2;
   const rOuter = Math.max(1, Math.min(r.plot.w, r.plot.h) / 2);
-  const rInner = rOuter * INNER;
+  const rInner = rOuter * innerRatio(r);
   const angles: { a0: number; a1: number }[] = [];
   let a = START;
   const sweep = Math.PI * 2 * Math.min(1, Math.max(0, t));
@@ -49,12 +53,17 @@ export function renderDonut(r: RenderContext): void {
     if (a1 <= a0) continue;
     ctx.beginPath();
     ctx.arc(geo.cx, geo.cy, geo.rOuter, a0, a1);
-    ctx.arc(geo.cx, geo.cy, geo.rInner, a1, a0, true);
+    if (geo.rInner > 0) {
+      ctx.arc(geo.cx, geo.cy, geo.rInner, a1, a0, true);
+    } else {
+      // pie wedge: route through the center so closePath doesn't cut a chord
+      ctx.lineTo(geo.cx, geo.cy);
+    }
     ctx.closePath();
     ctx.fillStyle = s.color;
     ctx.fill();
   }
-  if (d.slices.length > 0 && r.t > 0.5) {
+  if (r.opts.type !== "pie" && d.slices.length > 0 && r.t > 0.5) {
     ctx.fillStyle = r.theme.text;
     ctx.font = `600 20px ${r.theme.fontFamily}`;
     ctx.textAlign = "center";

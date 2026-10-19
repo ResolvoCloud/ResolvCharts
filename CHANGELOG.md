@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.0
+
+### Added
+
+- **Five new chart types** — 15 total:
+  - `pie` — donut variant that fills to the center (same `{ slices }` data, hover share tooltips included).
+  - `bubble` — xy series with a per-point `r` channel mapped to a 3–16 px radius.
+  - `rangearea` — filled band between `y` (lower) and `y2` (upper) per point; both edges are M4-decimated, so million-point bands stay fast.
+  - `radar` — one spoke axis per category with ring grid and per-series polygons; spoke highlight + vertex dots on hover.
+  - `funnel` — one trapezoid stage per category using the first series' values, with in-bar or side labels.
+- **`SeriesInput.r` / `SeriesInput.y2`** channels — carried through `setData()`, `append()`, and internal re-sorts.
+- **`BENCHMARK_COMPARISON.md`** — reproducible browser benchmarks vs Chart.js, ApexCharts, and Highcharts (init, render, streaming, scatter, bundle size).
+- **Demo gallery** rebuilt as a data-driven example registry (`demo/examples.js` + `demo/demo.js`) — global theme/renderer toggles, per-card option source, seeded stable data.
+- `resolvcharts-react` supports all new types out of the box (props map 1:1 to `ChartOptions`).
+
 ## 0.3.0
 
 ### Added

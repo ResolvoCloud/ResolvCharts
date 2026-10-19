@@ -1,9 +1,13 @@
 import { hitBar, renderBar } from "../charts/bar";
 import { hitBaseline, renderBaseline } from "../charts/baseline";
+import { hitBubble, renderBubble } from "../charts/bubble";
 import { hitCandle, renderCandles } from "../charts/candle";
 import { hitCombo, renderCombo } from "../charts/combo";
 import { hitDonut, renderDonut } from "../charts/donut";
+import { hitFunnel, renderFunnel } from "../charts/funnel";
 import { FLOW_RIPPLE, hitXY, renderLine } from "../charts/line";
+import { drawRadarHover, hitRadar, renderRadar } from "../charts/radar";
+import { hitRangeArea, renderRangeArea } from "../charts/rangearea";
 import type { RenderContext } from "../charts/registry";
 import { hitScatter, renderScatter } from "../charts/scatter";
 import { hitSparkline, renderSparkline } from "../charts/sparkline";
@@ -57,6 +61,36 @@ const MODULES: Record<ChartType, TypeModule> = {
     render: renderScatter,
     hit: (r, px) => hitScatter(r, px),
     axes: true,
+    defaultTooltip: true,
+  },
+  bubble: {
+    render: renderBubble,
+    hit: (r, px) => hitBubble(r, px),
+    axes: true,
+    defaultTooltip: true,
+  },
+  rangearea: {
+    render: renderRangeArea,
+    hit: (r, px) => hitRangeArea(r, px),
+    axes: true,
+    defaultTooltip: true,
+  },
+  pie: {
+    render: renderDonut,
+    hit: hitDonut,
+    axes: false,
+    defaultTooltip: true,
+  },
+  radar: {
+    render: renderRadar,
+    hit: hitRadar,
+    axes: false,
+    defaultTooltip: true,
+  },
+  funnel: {
+    render: renderFunnel,
+    hit: hitFunnel,
+    axes: false,
     defaultTooltip: true,
   },
   bar: { render: renderBar, hit: hitBar, axes: true, defaultTooltip: true },
@@ -316,7 +350,7 @@ export class Chart {
       });
       return { kind: "waterfall", categories: [...d.categories], bars };
     }
-    if (t === "donut") {
+    if (t === "donut" || t === "pie") {
       const d = data as DonutData;
       const slices = d.slices.map((s, i) => ({
         label: s.label,
@@ -326,7 +360,7 @@ export class Chart {
       const total = slices.reduce((a, s) => a + Math.max(0, s.value), 0);
       return { kind: "donut", slices, total };
     }
-    if (t === "bar" || t === "combo") {
+    if (t === "bar" || t === "combo" || t === "radar" || t === "funnel") {
       const d = data as CategoryData;
       const prevSeries = prev?.kind === "category" ? prev.series : [];
       return {
@@ -363,18 +397,28 @@ export class Chart {
       kind: "xy",
       sortedX,
       series: d.series.map((s, i) => {
-        const y = new Float64Array(n);
-        const src = s.y;
-        if (idx) {
-          for (let k = 0; k < n; k++) y[k] = src[idx[k] as number] as number;
-        } else {
-          for (let k = 0; k < n; k++) y[k] = src[k] as number;
-        }
+        const chan = (
+          src: ArrayLike<number> | undefined,
+        ): Float64Array | null => {
+          if (!src) return null;
+          const out = new Float64Array(n);
+          if (idx) {
+            for (let k = 0; k < n; k++)
+              out[k] = src[idx[k] as number] as number;
+          } else {
+            for (let k = 0; k < n; k++) out[k] = src[k] as number;
+          }
+          return out;
+        };
+        const y = chan(s.y) ?? new Float64Array(n);
         return {
           label: s.label ?? `Series ${i + 1}`,
           color: seriesColor(this.theme, i, s.color),
           y,
           prevY: prevSeries[i]?.y ?? null,
+          r: chan(s.r),
+          y2: chan(s.y2),
+          prevY2: prevSeries[i]?.y2 ?? null,
           pathCache: null,
         };
       }),
@@ -464,6 +508,14 @@ export class Chart {
           const v = y[i] as number;
           if (v < min) min = v;
           if (v > max) max = v;
+        }
+        const y2 = s.y2;
+        if (y2) {
+          for (let i = Math.min(x0, y2.length); i < y2.length; i++) {
+            const v = y2[i] as number;
+            if (v < min) min = v;
+            if (v > max) max = v;
+          }
         }
       }
       if (min === Infinity) {
@@ -734,6 +786,10 @@ export class Chart {
     const o = this.backend.overlay;
     const plot = this.backend.plot;
     this.backend.beginOverlay();
+    if (info.kind === "point" && this.options.type === "radar") {
+      drawRadarHover(this.renderContext(1), info);
+      return;
+    }
     if (info.kind === "point" || info.kind === "candle") {
       o.strokeStyle = this.theme.crosshair;
       o.lineWidth = 1;
@@ -772,7 +828,7 @@ export class Chart {
         const cx = plot.x + plot.w / 2;
         const cy = plot.y + plot.h / 2;
         const rOuter = Math.min(plot.w, plot.h) / 2;
-        const rInner = rOuter * 0.65;
+        const rInner = this.options.type === "pie" ? 0 : rOuter * 0.65;
         let a = -Math.PI / 2;
         for (let i = 0; i < d.slices.length; i++) {
           const s = d.slices[i];
@@ -897,7 +953,7 @@ export class Chart {
     const d = this.data;
     if (d.kind !== "xy") {
       throw new Error(
-        "[resolvcharts] append() requires xy data (line/area/scatter/sparkline)",
+        "[resolvcharts] append() requires xy data (line/area/scatter/bubble/rangearea/sparkline)",
       );
     }
     // EMA of append cadence — drives flow-mode tween duration
@@ -960,11 +1016,33 @@ export class Chart {
         prevY[m - 1] =
           m > 1 ? (yNew[m - 2] as number) : (yNew[m - 1] as number);
       }
+      // auxiliary channels (bubble r, rangearea y2) ride along — the new
+      // tail duplicates the last retained value
+      let rNew: Float64Array | null = null;
+      if (s.r) {
+        rNew = new Float64Array(m);
+        rNew.set(s.r.subarray(drop));
+        rNew[m - 1] = s.r[n - 1] as number;
+      }
+      let y2New: Float64Array | null = null;
+      let prevY2: Float64Array | null = null;
+      if (s.y2) {
+        y2New = new Float64Array(m);
+        y2New.set(s.y2.subarray(drop));
+        y2New[m - 1] = s.y2[n - 1] as number;
+        prevY2 = new Float64Array(m);
+        prevY2.set(s.y2.subarray(drop));
+        prevY2[m - 1] =
+          m > 1 ? (y2New[m - 2] as number) : (y2New[m - 1] as number);
+      }
       return {
         label: s.label,
         color: s.color,
         y: yNew,
         prevY,
+        r: rNew,
+        y2: y2New,
+        prevY2,
         pathCache: null,
       };
     });
@@ -1038,13 +1116,22 @@ function resortXY(d: NormalizedXY): void {
   for (const s of d.series) {
     const ny = new Float64Array(n);
     const np = s.prevY ? new Float64Array(n) : null;
+    const nr = s.r ? new Float64Array(n) : null;
+    const ny2 = s.y2 ? new Float64Array(n) : null;
+    const np2 = s.prevY2 ? new Float64Array(n) : null;
     for (let i = 0; i < n; i++) {
       const k = idx[i] as number;
       ny[i] = s.y[k] as number;
       if (np && s.prevY) np[i] = s.prevY[k] as number;
+      if (nr && s.r) nr[i] = s.r[k] as number;
+      if (ny2 && s.y2) ny2[i] = s.y2[k] as number;
+      if (np2 && s.prevY2) np2[i] = s.prevY2[k] as number;
     }
     s.y = ny;
     s.prevY = np;
+    s.r = nr;
+    s.y2 = ny2;
+    s.prevY2 = np2;
   }
 }
 

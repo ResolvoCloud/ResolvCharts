@@ -1,6 +1,7 @@
 import type { CanvasBackend } from "../core/canvas";
 import type {
   ChartOptions,
+  CurveMode,
   NormalizedData,
   NormalizedXY,
   Rect,
@@ -49,12 +50,13 @@ export function smoothPath(
   ctx: CanvasPath,
   pts: ArrayLike<number>,
   n: number,
+  connect = false,
 ): void {
   if (n < 3) {
     for (let i = 0; i < n; i++) {
       const x = pts[2 * i] as number;
       const y = pts[2 * i + 1] as number;
-      if (i === 0) ctx.moveTo(x, y);
+      if (i === 0 && !connect) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
     return;
@@ -88,7 +90,8 @@ export function smoothPath(
       if (Math.abs(ti1) > lim) tang[i + 1] = Math.sign(ti1) * lim;
     }
   }
-  ctx.moveTo(pts[0] as number, pts[1] as number);
+  if (connect) ctx.lineTo(pts[0] as number, pts[1] as number);
+  else ctx.moveTo(pts[0] as number, pts[1] as number);
   for (let i = 0; i < segs; i++) {
     const x0 = pts[2 * i] as number;
     const x1 = pts[2 * (i + 1)] as number;
@@ -103,5 +106,37 @@ export function smoothPath(
       x1,
       y1,
     );
+  }
+}
+
+/**
+ * Trace `n` interleaved [x, y] pixel points into `path` honoring `curve`
+ * (linear / step / smooth). `connect` continues the current subpath with a
+ * lineTo instead of starting a new one — used for closed band shapes.
+ */
+export function traceCurve(
+  path: CanvasPath,
+  pts: ArrayLike<number>,
+  n: number,
+  curve: CurveMode,
+  connect = false,
+): void {
+  if (n === 0) return;
+  const join = (x: number, y: number) =>
+    connect ? path.lineTo(x, y) : path.moveTo(x, y);
+  if (curve === "step") {
+    join(pts[0] as number, pts[1] as number);
+    for (let i = 1; i < n; i++) {
+      const x = pts[2 * i] as number;
+      path.lineTo(x, pts[2 * i - 1] as number);
+      path.lineTo(x, pts[2 * i + 1] as number);
+    }
+  } else if (curve === "smooth") {
+    smoothPath(path, pts, n, connect);
+  } else {
+    join(pts[0] as number, pts[1] as number);
+    for (let i = 1; i < n; i++) {
+      path.lineTo(pts[2 * i] as number, pts[2 * i + 1] as number);
+    }
   }
 }

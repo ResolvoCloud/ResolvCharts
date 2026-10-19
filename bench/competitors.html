@@ -271,9 +271,9 @@ const impls = {
 window.run = async (lib, kind, type, N, opts) => {
   try {
     if (kind === "render") return await impls[lib].render(type, N, opts || {});
-    if (kind === "stream") return await impls[lib].stream((opts && opts.ms) || 3000);
+    if (kind === "stream") return await impls[lib].stream((opts?.ms) || 3000);
   } catch (e) {
-    return { error: String(e && e.message ? e.message : e) };
+    return { error: String(e?.message ? e.message : e) };
   }
   return { error: "unknown kind" };
 };

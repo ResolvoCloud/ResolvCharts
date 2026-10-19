@@ -1,9 +1,9 @@
 import { withAlpha } from "../core/color";
 import { decimateSeriesPx, mapSeriesPx } from "../core/decimate";
 import { nearestIndex } from "../core/hit";
-import type { HoverInfo, NormalizedSeries } from "../core/types";
+import type { HoverInfo } from "../core/types";
 import type { RenderContext } from "./registry";
-import { isXY, smoothPath } from "./registry";
+import { isXY, traceCurve } from "./registry";
 
 /** fraction of the tween the trailing edge lags behind the leading point */
 export const FLOW_RIPPLE = 0.35;
@@ -25,7 +25,7 @@ export interface BuiltPath {
  */
 export function seriesPoints(
   r: RenderContext,
-  s: NormalizedSeries,
+  s: { y: Float64Array; prevY: Float64Array | null },
   yFallback?: number,
 ): Float32Array {
   const d = r.data;
@@ -51,29 +51,14 @@ export function seriesPoints(
 
 export function buildPath(
   r: RenderContext,
-  s: NormalizedSeries,
+  s: { y: Float64Array; prevY: Float64Array | null },
   yFallback?: number,
 ): BuiltPath {
   const path = new Path2D();
   const pts = seriesPoints(r, s, yFallback);
   const dn = pts.length / 2;
   if (dn === 0) return { path, firstX: 0, lastX: 0, lastY: 0 };
-  const curve = r.opts.curve ?? "linear";
-  if (curve === "step") {
-    path.moveTo(pts[0] as number, pts[1] as number);
-    for (let i = 1; i < dn; i++) {
-      const x = pts[2 * i] as number;
-      path.lineTo(x, pts[2 * i - 1] as number);
-      path.lineTo(x, pts[2 * i + 1] as number);
-    }
-  } else if (curve === "smooth") {
-    smoothPath(path, pts, dn);
-  } else {
-    path.moveTo(pts[0] as number, pts[1] as number);
-    for (let i = 1; i < dn; i++) {
-      path.lineTo(pts[2 * i] as number, pts[2 * i + 1] as number);
-    }
-  }
+  traceCurve(path, pts, dn, r.opts.curve ?? "linear");
   return {
     path,
     firstX: pts[0] as number,

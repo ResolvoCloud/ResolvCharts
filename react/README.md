@@ -16,7 +16,7 @@ import { Chart } from "resolvcharts-react";
 />
 ```
 
-Props map 1:1 to `ChartOptions` (see the resolvcharts README). `data` changes animate via `setData()`; `type` changes rebuild the chart; all other options are captured at mount — pass a React `key` to force a rebuild. `onHover` is always the latest callback. `onReady` / `ref` expose the chart instance for `append()`, `resize()`, `destroy()`.
+Props map 1:1 to `ChartOptions` (see the resolvcharts README). All chart types work — `line` `area` `baseline` `sparkline` `scatter` `bubble` `rangearea` `bar` `combo` `radar` `funnel` `donut` `pie` `candle` `ohlc` `waterfall`. `data` changes animate via `setData()`; `type` changes rebuild the chart; all other options are captured at mount — pass a React `key` to force a rebuild. `onHover` is always the latest callback. `onReady` / `ref` expose the chart instance for `append()`, `resize()`, `destroy()`.
 
 Streaming:
 
