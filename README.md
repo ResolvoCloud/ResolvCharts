@@ -196,6 +196,19 @@ The viewport (x/y domain) animates toward the new domain on every `append()` —
 - Zero-allocation streaming — steady-state `append()` reuses buffers via `copyWithin` and buffer ping-pong
 - O(n) monotonic fast path — already-sorted data skips the index sort entirely
 
+### Benchmarks
+
+Same machine, browser, data, and chart size (900×240, two series). Methodology and full tables: [BENCHMARK_COMPARISON.md](./BENCHMARK_COMPARISON.md).
+
+| | resolvcharts | Chart.js 4.5 | ApexCharts 8.3 | Highcharts 13.1 |
+|---|---|---|---|---|
+| Line render, 1M pts ×2 | **0.22 ms** | 136–1380 ms | 484 ms | 248–3194 ms |
+| Streaming, 50k window | **120 fps** | 15 fps | 17 fps | 13 fps |
+| Bundle (gzip) | **19.5 KB** | 70.7 KB | 269.8 KB | 102.3 KB |
+
+Chart.js range = built-in decimation on/off; Highcharts range = WebGL boost module on/off. Even the Canvas2D fallback (3.9 ms at 1M) is ~35× faster than the best competitor configuration.
+
+Last benchmarked as of Oct 18, 2025
 ---
 
 A project by [Resolvo Cloud](https://resolvocloud.com)

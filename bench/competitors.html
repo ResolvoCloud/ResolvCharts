@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>competitor bench</title>
+<style>body{margin:0;background:#111}div.c{height:240px;width:900px}</style>
+<script src="./vendor/chart.umd.js"></script>
+<script src="./vendor/apexcharts.min.js"></script>
+<script src="./vendor/highcharts.min.js"></script>
+<script src="./vendor/highcharts-boost.js"></script>
+</head>
+<body>
+<div class="c" id="c"></div>
+<script>
+function stats(a) {
+  if (!a.length) return null;
+  const s = [...a].sort((x, y) => x - y);
+  const p = (q) => s[Math.min(s.length - 1, Math.floor(q * s.length))];
+  return { n: a.length, avg: a.reduce((x, y) => x + y, 0) / a.length, p50: p(0.5), p95: p(0.95), max: s[s.length - 1] };
+}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const frame = () => new Promise((r) => requestAnimationFrame(r));
+
+// identical signal to bench/browser.html
+function makeData(N) {
+  const ys = new Array(N);
+  const ys2 = new Array(N);
+  for (let i = 0; i < N; i++) {
+    ys[i] = 50 + 30 * Math.sin(i / 500) + (i % 17);
+    ys2[i] = 60 + 20 * Math.cos(i / 300) + (i % 13);
+  }
+  return { y1: ys, y2: ys2 };
+}
+function makeXY(N) {
+  const a = new Array(N), b = new Array(N);
+  for (let i = 0; i < N; i++) {
+    a[i] = { x: i, y: 50 + 30 * Math.sin(i / 500) + (i % 17) };
+    b[i] = { x: i, y: 60 + 20 * Math.cos(i / 300) + (i % 13) };
+  }
+  return [a, b];
+}
+function resetEl() {
+  const el = document.querySelector("#c");
+  el.innerHTML = "";
+  return el;
+}
+const itersFor = (N) => (N <= 10_000 ? 50 : N <= 100_000 ? 20 : 8);
+
+// ---------------- Chart.js 4.5.1 (canvas) ----------------
+function chartjsCreate(type, N, decimate) {
+  const el = resetEl();
+  const cv = document.createElement("canvas");
+  cv.style.width = "900px";
+  cv.style.height = "240px";
+  el.appendChild(cv);
+  const isScatter = type === "scatter";
+  const data = decimate ? makeXY(N) : makeData(N);
+  const datasets = decimate
+    ? [{ data: data[0] }, { data: data[1] }]
+    : [
+        { data: data.y1, pointRadius: 0, borderWidth: 1 },
+        { data: data.y2, pointRadius: 0, borderWidth: 1 },
+      ];
+  const t0 = performance.now();
+  const ch = new Chart(cv, {
+    type: isScatter ? "scatter" : "line",
+    data: decimate ? { datasets } : { labels: [...Array(N).keys()], datasets },
+    options: {
+      animation: false,
+      responsive: false,
+      maintainAspectRatio: false,
+      events: [],
+      elements: { point: { radius: isScatter ? 1.5 : 0 }, line: { borderWidth: 1 } },
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: false },
+        decimation: decimate ? { enabled: true, algorithm: "min-max" } : { enabled: false },
+      },
+      scales: { x: { type: isScatter || decimate ? "linear" : "category" }, y: { type: "linear" } },
+    },
+  });
+  return { ch, initMs: performance.now() - t0 };
+}
+async function chartjsRender(type, N, { decimate = false, iters } = {}) {
+  const { ch, initMs } = chartjsCreate(type, N, decimate);
+  await sleep(300);
+  const times = [];
+  const n = iters ?? itersFor(N);
+  for (let i = 0; i < n; i++) {
+    const t0 = performance.now();
+    ch.update("none");
+    times.push(performance.now() - t0);
+    await frame();
+  }
+  ch.destroy();
+  return { initMs, update: stats(times) };
+}
+async function chartjsStream(ms = 3000) {
+  const win = 50_000;
+  const { ch, initMs } = chartjsCreate("line", win, false);
+  await sleep(300);
+  const ds = ch.data.datasets[0];
+  let frames = 0;
+  let v = 50;
+  const times = [];
+  const t0 = performance.now();
+  while (performance.now() - t0 < ms) {
+    await frame();
+    v += Math.random() * 4 - 2;
+    const a = performance.now();
+    ds.data.push(v);
+    ds.data.shift();
+    ch.update("none");
+    times.push(performance.now() - a);
+    frames++;
+  }
+  const fps = (frames / (performance.now() - t0)) * 1000;
+  ch.destroy();
+  return { initMs, fps, updateMs: stats(times) };
+}
+
+// ---------------- ApexCharts 8.3.1 (SVG) ----------------
+async function apexCreate(type, N) {
+  const el = resetEl();
+  const d = makeData(N);
+  const t0 = performance.now();
+  const ch = new ApexCharts(el, {
+    chart: {
+      type, height: 240, width: 900,
+      events: {},
+      defaultLocale: "en",
+      animations: { enabled: false },
+      toolbar: { show: false }, zoom: { enabled: false },
+      selection: { enabled: false },
+      redrawOnParentResize: false, redrawOnWindowResize: false,
+    },
+    series: [
+      { name: "a", data: d.y1 },
+      { name: "b", data: d.y2 },
+    ],
+    markers: { size: type === "scatter" ? 2 : 0 },
+    dataLabels: { enabled: false },
+    tooltip: { enabled: false },
+    legend: { show: false },
+    stroke: { curve: "straight", width: 1 },
+    xaxis: { type: "numeric" },
+  });
+  await ch.render();
+  ch._benchData = d;
+  return { ch, initMs: performance.now() - t0 };
+}
+async function apexRender(type, N, { iters } = {}) {
+  const { ch, initMs } = await apexCreate(type, N);
+  await sleep(300);
+  const times = [];
+  const n = iters ?? itersFor(N);
+  for (let i = 0; i < n; i++) {
+    const t0 = performance.now();
+    await ch.updateSeries(
+      [
+        { name: "a", data: ch._benchData.y1 },
+        { name: "b", data: ch._benchData.y2 },
+      ],
+      false,
+    );
+    times.push(performance.now() - t0);
+    await frame();
+  }
+  ch.destroy();
+  return { initMs, update: stats(times) };
+}
+async function apexStream(ms = 3000) {
+  const win = 50_000;
+  const { ch, initMs } = await apexCreate("line", win);
+  await sleep(300);
+  let frames = 0;
+  let v = 50;
+  const times = [];
+  const t0 = performance.now();
+  while (performance.now() - t0 < ms) {
+    await frame();
+    v += Math.random() * 4 - 2;
+    const a = performance.now();
+    ch.appendData([{ data: [v] }]);
+    times.push(performance.now() - a);
+    frames++;
+  }
+  const fps = (frames / (performance.now() - t0)) * 1000;
+  ch.destroy();
+  return { initMs, fps, updateMs: stats(times) };
+}
+
+// ---------------- Highcharts 13.1.1 (SVG / boost WebGL) ----------------
+function hcCreate(type, N, boost) {
+  const el = resetEl();
+  const d = makeData(N);
+  const t0 = performance.now();
+  const ch = Highcharts.chart(el, {
+    chart: { type, animation: false, width: 900, height: 240 },
+    boost: boost ? { enabled: true, useGPUTranslations: true, usePreallocated: true } : { enabled: false },
+    plotOptions: {
+      series: {
+        animation: false,
+        marker: { enabled: false },
+        lineWidth: 1,
+        turboThreshold: 10_000_000,
+        boostThreshold: boost ? 1 : 0,
+        stickyTracking: false,
+        states: { hover: { enabled: false } },
+      },
+    },
+    tooltip: { enabled: false },
+    legend: { enabled: false },
+    credits: { enabled: false },
+    title: { text: null },
+    series: [
+      { pointStart: 0, pointInterval: 1, data: d.y1 },
+      { pointStart: 0, pointInterval: 1, data: d.y2 },
+    ],
+  });
+  ch._benchData = d;
+  return { ch, initMs: performance.now() - t0 };
+}
+async function hcRender(type, N, { boost = false, iters } = {}) {
+  const { ch, initMs } = hcCreate(type, N, boost);
+  await sleep(300);
+  const times = [];
+  const n = iters ?? itersFor(N);
+  const d = ch._benchData;
+  for (let i = 0; i < n; i++) {
+    const t0 = performance.now();
+    ch.series[0].setData(d.y1, false, false, false);
+    ch.series[1].setData(d.y2, false, false, false);
+    ch.redraw(false);
+    times.push(performance.now() - t0);
+    await frame();
+  }
+  ch.destroy();
+  return { initMs, update: stats(times) };
+}
+async function hcStream(ms = 3000) {
+  const win = 50_000;
+  const { ch, initMs } = hcCreate("line", win, false);
+  await sleep(300);
+  const s0 = ch.series[0];
+  let frames = 0;
+  let v = 50;
+  let x = win;
+  const times = [];
+  const t0 = performance.now();
+  while (performance.now() - t0 < ms) {
+    await frame();
+    v += Math.random() * 4 - 2;
+    const a = performance.now();
+    s0.addPoint(v, true, true, false);
+    times.push(performance.now() - a);
+    frames++;
+    x++;
+  }
+  const fps = (frames / (performance.now() - t0)) * 1000;
+  ch.destroy();
+  return { initMs, fps, updateMs: stats(times) };
+}
+
+// ---------------- dispatch ----------------
+const impls = {
+  chartjs: { render: chartjsRender, stream: chartjsStream },
+  "chartjs-dec": { render: (t, N, o) => chartjsRender(t, N, { ...o, decimate: true }), stream: chartjsStream },
+  apexcharts: { render: apexRender, stream: apexStream },
+  highcharts: { render: hcRender, stream: hcStream },
+  "highcharts-boost": { render: (t, N, o) => hcRender(t, N, { ...o, boost: true }), stream: hcStream },
+};
+window.run = async (lib, kind, type, N, opts) => {
+  try {
+    if (kind === "render") return await impls[lib].render(type, N, opts || {});
+    if (kind === "stream") return await impls[lib].stream((opts && opts.ms) || 3000);
+  } catch (e) {
+    return { error: String(e && e.message ? e.message : e) };
+  }
+  return { error: "unknown kind" };
+};
+window.benchReady = true;
+</script>
+</body>
+</html>
