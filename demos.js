@@ -132,8 +132,16 @@ window.demos = (() => {
         data: {
           categories: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
           series: [
-            { label: "Inflow", values: [42, 55, 48, 61, 57, 70], kind: "column" },
-            { label: "Outflow", values: [30, 41, 37, 45, 52, 49], kind: "column" },
+            {
+              label: "Inflow",
+              values: [42, 55, 48, 61, 57, 70],
+              kind: "column",
+            },
+            {
+              label: "Outflow",
+              values: [30, 41, 37, 45, 52, 49],
+              kind: "column",
+            },
             { label: "Net", values: [12, 14, 11, 16, 5, 21], kind: "area" },
           ],
         },
@@ -182,12 +190,16 @@ window.demos = (() => {
             {
               label: "A",
               y: wave(50, 20, 9).slice(0, 60),
-              r: wave(4, 8, 7).slice(0, 60).map((v) => Math.max(2, v)),
+              r: wave(4, 8, 7)
+                .slice(0, 60)
+                .map((v) => Math.max(2, v)),
             },
             {
               label: "B",
               y: wave(40, 18, 11).slice(0, 60),
-              r: wave(4, 8, 8).slice(0, 60).map((v) => Math.max(2, v)),
+              r: wave(4, 8, 8)
+                .slice(0, 60)
+                .map((v) => Math.max(2, v)),
             },
           ],
         },
