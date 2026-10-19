@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.1
+
+### Added
+
+- **Tooltip corner radius** — `tooltip` now accepts `boolean | { radius?: number | string }`. `{ radius: 0 }` gives sharp corners; numbers are px, strings accept any CSS `border-radius` value. Defaults to `6px`.
+
+### Docs
+
+- **Live examples page** (`site/guides/examples`) — 14 charts grouped by use case (ops monitoring, finance, product analytics, business reporting, scientific/comparison), backed by `site/public/demos.js`. Linked from the landing page hero.
+
 ## 0.4.0
 
 ### Added

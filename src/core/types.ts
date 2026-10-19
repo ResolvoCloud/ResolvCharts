@@ -210,6 +210,18 @@ export type HoverInfo =
     };
 
 /**
+ * Tooltip customization — pass as `tooltip: { ... }` in {@link ChartOptions}.
+ * @category Charts
+ */
+export interface TooltipOptions {
+  /**
+   * Corner radius of the tooltip box. Number = px, string = any CSS
+   * border-radius value (`"0"`, `"2px 6px"`, `"50%"`). Default `6px`.
+   */
+  radius?: number | string;
+}
+
+/**
  * Options accepted by {@link createChart}.
  * @category Charts
  */
@@ -221,7 +233,11 @@ export interface ChartOptions {
   accent?: string;
   curve?: CurveMode;
   grid?: boolean;
-  tooltip?: boolean;
+  /**
+   * `true`/`false` toggles the tooltip, or pass an object to customize it —
+   * e.g. `{ radius: 0 }` for sharp corners (px number or CSS length).
+   */
+  tooltip?: boolean | TooltipOptions;
   legend?: boolean;
   /** `true` = 400 ms ease, a number = custom duration in ms, `false` = off. */
   animate?: boolean | number;

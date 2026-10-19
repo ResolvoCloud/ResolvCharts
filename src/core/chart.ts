@@ -238,8 +238,11 @@ export class Chart {
     this.reduced =
       typeof matchMedia === "function" &&
       matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const wantTooltip = options.tooltip ?? this.mod.defaultTooltip;
-    if (wantTooltip) this.tooltip = new Tooltip(el, this.theme);
+    const tipOpt = options.tooltip ?? this.mod.defaultTooltip;
+    if (tipOpt) {
+      const radius = typeof tipOpt === "object" ? tipOpt.radius : undefined;
+      this.tooltip = new Tooltip(el, this.theme, radius);
+    }
     this.data = this.normalize(options.data, null);
     this.maybeInitGpu();
     this.bindEvents();

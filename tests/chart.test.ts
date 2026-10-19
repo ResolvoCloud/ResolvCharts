@@ -388,4 +388,33 @@ describe("createChart", () => {
     await wait();
     chart.destroy();
   });
+
+  it("tooltip accepts a custom corner radius", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    const chart = createChart(el, {
+      type: "line",
+      data: { x: [0, 1, 2], series: [{ y: [1, 5, 3] }] },
+      tooltip: { radius: 0 },
+      animate: false,
+    });
+    const tip = el.querySelector("div");
+    expect(tip?.style.borderRadius).toBe("0px");
+    await wait();
+    chart.destroy();
+  });
+
+  it("tooltip defaults to 6px radius", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    const chart = createChart(el, {
+      type: "line",
+      data: { x: [0, 1, 2], series: [{ y: [1, 5, 3] }] },
+      animate: false,
+    });
+    const tip = el.querySelector("div");
+    expect(tip?.style.borderRadius).toBe("6px");
+    await wait();
+    chart.destroy();
+  });
 });

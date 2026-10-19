@@ -4,7 +4,11 @@ export class Tooltip {
   readonly el: HTMLDivElement;
   private theme: ThemeTokens;
 
-  constructor(container: HTMLElement, theme: ThemeTokens) {
+  constructor(
+    container: HTMLElement,
+    theme: ThemeTokens,
+    radius?: number | string,
+  ) {
     this.theme = theme;
     this.el = document.createElement("div");
     this.el.style.cssText = [
@@ -13,7 +17,7 @@ export class Tooltip {
       `background:${theme.tooltipBg}`,
       `border:1px solid ${theme.tooltipBorder}`,
       `box-shadow:${theme.tooltipShadow}`,
-      "border-radius:6px",
+      `border-radius:${typeof radius === "number" ? `${radius}px` : (radius ?? "6px")}`,
       "padding:6px 10px",
       `font:12px ${theme.fontFamily}`,
       `color:${theme.tooltipText}`,

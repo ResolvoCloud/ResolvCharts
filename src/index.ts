@@ -22,6 +22,7 @@ export type {
   Scale,
   SeriesInput,
   ThemeTokens,
+  TooltipOptions,
   WaterfallData,
   XYData,
 } from "./core/types";

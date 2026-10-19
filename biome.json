@@ -9,7 +9,8 @@
       "!site/dist",
       "!**/.astro",
       "!*.png",
-      "!**/vendor"
+      "!**/vendor",
+      "!site/public/resolvcharts.global.min.js"
     ]
   },
   "formatter": {
