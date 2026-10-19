@@ -1,0 +1,57 @@
+---
+title: Examples
+description: Live demos grouped by use case — each chart is one createChart() call.
+---
+
+Live examples grouped by use case. Every chart below is a single `createChart()` call — the demo sources are in [`site/public/demos.js`](https://github.com/ResolvoCloud/ResolvCharts/blob/main/site/public/demos.js), and a larger registry lives in [`demo/`](https://github.com/ResolvoCloud/ResolvCharts/tree/main/demo).
+
+<script is:inline src={import.meta.env.BASE_URL + "/resolvcharts.global.min.js"}></script>
+<script is:inline src={import.meta.env.BASE_URL + "/demos.js"}></script>
+
+## Ops monitoring
+
+Live-updating metrics over a sliding window — `flow` keeps the tween glued to the append cadence so the line never snaps.
+
+<div class="chart-demo" data-demo="cpu" style="height:240px"></div>
+
+<div class="chart-demo" data-demo="mem" style="height:240px"></div>
+
+<div class="chart-demo" data-demo="services" style="height:240px"></div>
+
+## Finance
+
+OHLC candles with a volume band, and a baseline delta chart for deviation from a reference value.
+
+<div class="chart-demo" data-demo="candles" style="height:280px"></div>
+
+<div class="chart-demo" data-demo="delta" style="height:240px"></div>
+
+## Product analytics
+
+Stage drop-off, traffic share, and weekly cohort retention.
+
+<div class="chart-demo" data-demo="signup" style="height:260px"></div>
+
+<div class="chart-demo" data-demo="traffic" style="height:260px"></div>
+
+<div class="chart-demo" data-demo="cohorts" style="height:240px"></div>
+
+## Business reporting
+
+Columns + area overlay for cash flow, and a waterfall bridge for P&L.
+
+<div class="chart-demo" data-demo="cashflow" style="height:240px"></div>
+
+<div class="chart-demo" data-demo="pnl" style="height:240px"></div>
+
+## Scientific & comparison
+
+Min/max bands, multi-axis radar comparison, sized point clouds, and an inline KPI sparkline.
+
+<div class="chart-demo" data-demo="tempRange" style="height:240px"></div>
+
+<div class="chart-demo" data-demo="models" style="height:280px"></div>
+
+<div class="chart-demo" data-demo="clusters" style="height:240px"></div>
+
+<div class="chart-demo" data-demo="kpi" style="height:48px"></div>

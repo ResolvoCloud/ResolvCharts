@@ -9,6 +9,9 @@ hero:
       link: ./guides/getting-started/
       icon: right-arrow
       variant: primary
+    - text: See examples
+      link: ./guides/examples/
+      icon: open-book
     - text: API reference
       link: ./api/
       icon: open-book
@@ -33,7 +36,7 @@ chart.append(Date.now(), value); // streams smoothly, zero-alloc steady state
 
 ## Why
 
-- **Zero dependencies** — ~15 kB gzipped ESM.
+- **Zero dependencies** — ~21 kB gzipped ESM.
 - **Fast** — typed arrays, M4 raster-perfect decimation, zero-alloc live append.
-- **10 chart types** — line, area, bar, combo, sparkline, scatter, donut, candle, ohlc, waterfall, baseline.
+- **16 chart types** — line, area, bar, combo, sparkline, scatter, bubble, rangearea, donut, pie, radar, funnel, candle, ohlc, waterfall, baseline.
 - **Optional WebGPU** — `renderer: "auto"` rasterizes series on the GPU; axes, grid and tooltips stay on Canvas2D.
