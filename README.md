@@ -3,9 +3,11 @@
 [![npm](https://img.shields.io/npm/v/resolvcharts)](https://www.npmjs.com/package/resolvcharts)
 [![license](https://img.shields.io/npm/l/resolvcharts)](./LICENSE)
 
-A minimal, zero-dependency canvas charting library. Opinionated defaults, small API, fast rendering.
+A minimal, zero-dependency charting library. Small API, super fast rendering.
 
 At [Resolvo Cloud](https://resolvocloud.com), we experienced glitchy live charts, bloated libraries and just overcomplicated processes for something as simple as charting, so we made ResolvCharts to Resolve that issue.
+
+The result? A Lightweight library, with our benchmarks showing over 30x faster rendering than alternative charting solutions we've explored.
 
 ## Install
 
@@ -208,7 +210,7 @@ Same machine, browser, data, and chart size (900×240, two series). Methodology 
 
 Chart.js range = built-in decimation on/off; Highcharts range = WebGL boost module on/off. Even the Canvas2D fallback (3.9 ms at 1M) is ~35× faster than the best competitor configuration.
 
-Last benchmarked as of Oct 18, 2025
+Last benchmarked as of Oct 18, 2026
 ---
 
 A project by [Resolvo Cloud](https://resolvocloud.com)
