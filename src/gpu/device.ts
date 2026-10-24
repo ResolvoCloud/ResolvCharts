@@ -15,9 +15,10 @@ export interface GpuRequestOptions {
 const cache = new Map<string, Promise<GPUDevice | null>>();
 
 export function getGpuDevice(
-  opts: GpuRequestOptions = {},
+  opts?: GpuRequestOptions | null,
 ): Promise<GPUDevice | null> {
-  const key = JSON.stringify(opts);
+  const o = opts ?? {};
+  const key = JSON.stringify(o);
   let p = cache.get(key);
   if (!p) {
     p = (async (): Promise<GPUDevice | null> => {
@@ -26,10 +27,10 @@ export function getGpuDevice(
         const gpu = (nav as Navigator | null)?.gpu;
         if (!gpu) return null;
         const req: GPURequestAdapterOptions = {};
-        if (opts.powerPreference && opts.powerPreference !== "default") {
-          req.powerPreference = opts.powerPreference;
+        if (o.powerPreference && o.powerPreference !== "default") {
+          req.powerPreference = o.powerPreference;
         }
-        if (opts.compat) {
+        if (o.compat) {
           (req as { featureLevel?: "compatibility" }).featureLevel =
             "compatibility";
         }
@@ -39,13 +40,13 @@ export function getGpuDevice(
         const adapter = await gpu.requestAdapter(req);
         if (!adapter) return null;
         if (
-          !opts.allowFallback &&
+          !o.allowFallback &&
           (adapter as { isFallbackAdapter?: boolean }).isFallbackAdapter
         ) {
           return null;
         }
         const requiredFeatures: GPUFeatureName[] = [];
-        if (opts.timing && adapter.features.has("timestamp-query")) {
+        if (o.timing && adapter.features.has("timestamp-query")) {
           requiredFeatures.push("timestamp-query");
         }
         const device = await adapter.requestDevice({ requiredFeatures });

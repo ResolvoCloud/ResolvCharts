@@ -16,7 +16,13 @@ export function renderCandles(r: RenderContext, ohlcStyle: boolean): void {
   ctx.clip();
   ctx.globalAlpha = r.t >= 1 ? 1 : r.t;
 
-  // inline scale math: ~3x faster than closure calls at candle scale
+  // inline scale math: ~3x faster than closure calls at candle scale.
+  // `linX`/`linY` hoist the branch — log scales pay one closure call per
+  // candle instead of an unpredictable branch per field
+  const linX = r.opts.xScale !== "log";
+  const linY = r.opts.yScale !== "log";
+  // NaN coords are only possible on log scales — skip the guards otherwise
+  const guarded = !linX || !linY;
   const xd = r.xScale.domain;
   const xr = r.xScale.range;
   const kx = (xr[1] - xr[0]) / (xd[1] - xd[0] || 1);
@@ -50,22 +56,40 @@ export function renderCandles(r: RenderContext, ohlcStyle: boolean): void {
     const vk = vmax > 0 ? bandH / vmax : 0;
     for (let i = 0; i < n; i++) {
       const up = (d.close[i] as number) >= (d.open[i] as number);
-      const cx = bx + (d.x[i] as number) * kx;
-      const hi = by + (d.high[i] as number) * ky;
-      const lo = by + (d.low[i] as number) * ky;
+      const cx = linX
+        ? bx + (d.x[i] as number) * kx
+        : r.xScale(d.x[i] as number);
+      const hi = linY
+        ? by + (d.high[i] as number) * ky
+        : r.yScale(d.high[i] as number);
+      const lo = linY
+        ? by + (d.low[i] as number) * ky
+        : r.yScale(d.low[i] as number);
+      const op = linY
+        ? by + (d.open[i] as number) * ky
+        : r.yScale(d.open[i] as number);
+      const cl = linY
+        ? by + (d.close[i] as number) * ky
+        : r.yScale(d.close[i] as number);
+      if (
+        guarded &&
+        (!Number.isFinite(cx) ||
+          !Number.isFinite(hi) ||
+          !Number.isFinite(lo) ||
+          !Number.isFinite(op) ||
+          !Number.isFinite(cl))
+      ) {
+        continue;
+      }
       const wick = up ? wickUp : wickDown;
       wick.moveTo(cx, hi);
       wick.lineTo(cx, lo);
       if (ohlcStyle) {
-        const op = by + (d.open[i] as number) * ky;
-        const cl = by + (d.close[i] as number) * ky;
         wick.moveTo(cx - half, op);
         wick.lineTo(cx, op);
         wick.moveTo(cx, cl);
         wick.lineTo(cx + half, cl);
       } else {
-        const op = by + (d.open[i] as number) * ky;
-        const cl = by + (d.close[i] as number) * ky;
         const body = up ? bodyUp : bodyDown;
         body.rect(
           cx - half,
@@ -95,7 +119,10 @@ export function renderCandles(r: RenderContext, ohlcStyle: boolean): void {
     let nc = 0;
     let prevCol = -1;
     for (let i = 0; i < n; i++) {
-      const c = Math.floor(bx + (d.x[i] as number) * kx);
+      const c = Math.floor(
+        linX ? bx + (d.x[i] as number) * kx : r.xScale(d.x[i] as number),
+      );
+      if (guarded && !Number.isFinite(c)) continue;
       if (c !== prevCol) {
         prevCol = c;
         const k = nc++;
@@ -129,18 +156,31 @@ export function renderCandles(r: RenderContext, ohlcStyle: boolean): void {
       const cx = cxA[k] as number;
       const up = (cA[k] as number) >= (oA[k] as number);
       const wick = up ? wickUp : wickDown;
-      wick.moveTo(cx, by + (hA[k] as number) * ky);
-      wick.lineTo(cx, by + (lA[k] as number) * ky);
+      const hiP = linY
+        ? by + (hA[k] as number) * ky
+        : r.yScale(hA[k] as number);
+      const loP = linY
+        ? by + (lA[k] as number) * ky
+        : r.yScale(lA[k] as number);
+      const op = linY ? by + (oA[k] as number) * ky : r.yScale(oA[k] as number);
+      const cl = linY ? by + (cA[k] as number) * ky : r.yScale(cA[k] as number);
+      if (
+        guarded &&
+        (!Number.isFinite(hiP) ||
+          !Number.isFinite(loP) ||
+          !Number.isFinite(op) ||
+          !Number.isFinite(cl))
+      ) {
+        continue;
+      }
+      wick.moveTo(cx, hiP);
+      wick.lineTo(cx, loP);
       if (ohlcStyle) {
-        const op = by + (oA[k] as number) * ky;
-        const cl = by + (cA[k] as number) * ky;
         wick.moveTo(cx - half, op);
         wick.lineTo(cx, op);
         wick.moveTo(cx, cl);
         wick.lineTo(cx + half, cl);
       } else {
-        const op = by + (oA[k] as number) * ky;
-        const cl = by + (cA[k] as number) * ky;
         (up ? bodyUp : bodyDown).rect(
           cx - half,
           Math.min(op, cl),

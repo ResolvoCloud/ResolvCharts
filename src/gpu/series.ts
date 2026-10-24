@@ -78,6 +78,13 @@ fn segQuad(v: vec2f, A: vec2f, B: vec2f) -> VOut {
 ) -> VOut {
   let ya = mix(pa, a.y, animT(f32(inst)));
   let yb = mix(pb, b.y, animT(f32(inst + 1u)));
+  var o: VOut;
+  // NaN endpoint = data gap → degenerate off-clip position kills the segment
+  if (a.x != a.x || ya != ya || b.x != b.x || yb != yb) {
+    o.pos = vec4f(0.0, 0.0, 2.0, 1.0);
+    o.edge = 0.0;
+    return o;
+  }
   return segQuad(
     OFF[vi], encToCss(vec2f(a.x, ya)), encToCss(vec2f(b.x, yb)),
   );
@@ -107,7 +114,10 @@ struct VOut {
   @location(1) b: vec2f,
 ) -> VOut {
   var o: VOut;
-  if (a.x < -1e20 || b.x < -1e20) {
+  if (
+    a.x < -1e20 || b.x < -1e20 ||
+    a.x != a.x || a.y != a.y || b.x != b.x || b.y != b.y
+  ) {
     o.pos = vec4f(0.0, 0.0, 2.0, 1.0); // outside clip z-range → discarded
     o.edge = 0.0;
     return o;
@@ -153,6 +163,12 @@ struct VOut {
   let y = mix(prev, top.y, animT(f32(vi >> 1u)));
   let css = encToCss(vec2f(top.x, y));
   var o: VOut;
+  // NaN x kills both verts; NaN y only the top edge — adjacent tris culled
+  if (top.x != top.x || (isTop && y != y)) {
+    o.pos = vec4f(0.0, 0.0, 2.0, 1.0);
+    o.grad = 0.0;
+    return o;
+  }
   o.pos = toClip(vec2f(css.x, select(u.p.x, css.y, isTop)));
   o.grad = clamp((css.y - u.p.y) / max(u.p.z, 1.0), 0.0, 1.0);
   return o;
@@ -176,6 +192,11 @@ struct VOut {
   let isTop = (vi & 1u) == 0u;
   let css = encToCss(top);
   var o: VOut;
+  if (css.x != css.x || (isTop && css.y != css.y)) {
+    o.pos = vec4f(0.0, 0.0, 2.0, 1.0);
+    o.grad = 0.0;
+    return o;
+  }
   o.pos = toClip(vec2f(css.x, select(u.p.x, css.y, isTop)));
   o.grad = clamp((css.y - u.p.y) / max(u.p.z, 1.0), 0.0, 1.0);
   return o;
@@ -207,6 +228,11 @@ struct VOut {
   let y = mix(prev, c.y, animT(f32(inst)));
   let css = encToCss(vec2f(c.x, y));
   var o: VOut;
+  if (css.x != css.x || css.y != css.y) {
+    o.pos = vec4f(0.0, 0.0, 2.0, 1.0);
+    o.local = vec2f(0.0, 0.0);
+    return o;
+  }
   o.pos = toClip(css + q * r);
   o.local = q * r;
   return o;
@@ -278,12 +304,24 @@ fn dec(@builtin(global_invocation_id) gid: vec3u) {
     }
     return;
   }
+  // finite scan: an all-NaN column renders like an empty one (gap)
+  var finite = 0u;
   var iMin = lo;
   var iMax = lo;
-  var mn = yLerp(lo);
-  var mx = mn;
-  for (var i = lo + 1u; i < hi; i++) {
+  var mn = 0.0;
+  var mx = 0.0;
+  for (var i = lo; i < hi; i++) {
     let y = yLerp(i);
+    if (y != y) {
+      continue;
+    }
+    if (finite == 0u) {
+      mn = y;
+      mx = y;
+      iMin = i;
+      iMax = i;
+    }
+    finite++;
     if (y < mn) {
       mn = y;
       iMin = i;
@@ -292,6 +330,17 @@ fn dec(@builtin(global_invocation_id) gid: vec3u) {
       mx = y;
       iMax = i;
     }
+  }
+  if (finite == 0u) {
+    let sent = vec2f(-1e30, -1e30);
+    for (var k = 0u; k < 4u; k++) {
+      dst[lineBase + k] = sent;
+    }
+    let gp = vec2f((f32(c) + 0.5 - u.map.y) / u.map.x, u.dec.y);
+    for (var k = 0u; k < 8u; k++) {
+      dst[areaBase + k] = gp;
+    }
+    return;
   }
   let xs = array<u32, 4>(lo, iMin, iMax, hi - 1u);
   for (var k = 0u; k < 4u; k++) {
@@ -394,6 +443,29 @@ export class GpuSeries {
   dead = false;
   /** true while a lost device is being re-acquired */
   recovering = false;
+  /** 1/ln(base) per axis under log scales, else 0 — data encodes in log
+   * space so the affine enc→css map reproduces the CPU log scale exactly */
+  private invLx = 0;
+  private invLy = 0;
+
+  /**
+   * Enable log-space encoding per axis (pass the log base, or null for
+   * linear). Non-positive values encode as NaN — path gaps, matching the
+   * Canvas2D semantics. Invalidates the data revision to force re-encode.
+   */
+  setLog(bx: number | null, by: number | null): void {
+    this.invLx = bx ? 1 / Math.log(bx) : 0;
+    this.invLy = by ? 1 / Math.log(by) : 0;
+    this.appliedRev = -1;
+  }
+
+  private tx(v: number): number {
+    return this.invLx ? (v > 0 ? Math.log(v) * this.invLx : NaN) : v;
+  }
+
+  private ty(v: number): number {
+    return this.invLy ? (v > 0 ? Math.log(v) * this.invLy : NaN) : v;
+  }
 
   get unavailable(): boolean {
     return this.dead || this.recovering;
@@ -417,12 +489,15 @@ export class GpuSeries {
     this.setup(device);
   }
 
-  static async create(opts: GpuRequestOptions = {}): Promise<GpuSeries | null> {
-    const device = await getGpuDevice(opts);
+  static async create(
+    opts?: GpuRequestOptions | null,
+  ): Promise<GpuSeries | null> {
+    const o = opts ?? {};
+    const device = await getGpuDevice(o);
     if (!device) return null;
     const canvas = document.createElement("canvas");
     try {
-      return new GpuSeries(device, canvas, opts);
+      return new GpuSeries(device, canvas, o);
     } catch {
       return null;
     }
@@ -628,17 +703,24 @@ export class GpuSeries {
   // lands on the same buffer without re-uploading. Ref/unit are fixed at
   // upload; out-of-range appends simply encode outside [0,1].
 
-  private upload(i: number, xs: Float64Array, s: NormalizedSeries): void {
+  private upload(i: number, d: NormalizedXY, s: NormalizedSeries): void {
+    const xs = d.sortedX;
+    // cached display-space copies skip the per-point log transform
+    const xsL = this.invLx && d.sortedXLog ? d.sortedXLog : null;
+    const ysL = this.invLy && s.yLog ? s.yLog : null;
+    const pvL = ysL && s.prevYLog ? s.prevYLog : null;
     const n = Math.min(xs.length, s.y.length);
-    const xr = n > 0 ? (xs[0] as number) : 0;
+    const xr =
+      n > 0 ? (xsL ? (xsL[0] as number) : this.tx(xs[0] as number)) : 0;
     const xu =
       1 /
-      ((n > 0 ? (xs[n - 1] as number) - xr : 0) ||
-        Math.max(1, Math.abs(xr), 1));
+      ((n > 0
+        ? (xsL ? (xsL[n - 1] as number) : this.tx(xs[n - 1] as number)) - xr
+        : 0) || Math.max(1, Math.abs(xr), 1));
     let mn = Infinity;
     let mx = -Infinity;
     for (let j = 0; j < n; j++) {
-      const v = s.y[j] as number;
+      const v = ysL ? (ysL[j] as number) : this.ty(s.y[j] as number);
       if (v < mn) mn = v;
       if (v > mx) mx = v;
     }
@@ -683,9 +765,13 @@ export class GpuSeries {
     const { encXY, encPrev } = slot;
     const prev = s.prevY;
     for (let j = 0; j < n; j++) {
-      encXY[2 * j] = ((xs[j] as number) - xr) * xu;
-      encXY[2 * j + 1] = ((s.y[j] as number) - yr) * yu;
-      encPrev[j] = prev ? ((prev[j] as number) - yr) * yu : 0;
+      encXY[2 * j] =
+        ((xsL ? (xsL[j] as number) : this.tx(xs[j] as number)) - xr) * xu;
+      encXY[2 * j + 1] =
+        ((ysL ? (ysL[j] as number) : this.ty(s.y[j] as number)) - yr) * yu;
+      encPrev[j] = prev
+        ? ((pvL ? (pvL[j] as number) : this.ty(prev[j] as number)) - yr) * yu
+        : 0;
     }
     this.device.queue.writeBuffer(slot.xy, 0, encXY, 0, n * 2);
     this.device.queue.writeBuffer(slot.prev, 0, encPrev, 0, n);
@@ -704,7 +790,7 @@ export class GpuSeries {
     }
     for (let i = 0; i < d.series.length; i++) {
       const s = d.series[i];
-      if (s) this.upload(i, d.sortedX, s);
+      if (s) this.upload(i, d, s);
     }
     this.slotCount = d.series.length;
     this.appliedRev = rev;
@@ -732,9 +818,9 @@ export class GpuSeries {
       s.n = n2;
       const pNew = (s.start + s.n - 1) % s.cap;
       const { xr, xu, yr, yu } = s.enc;
-      const ex = (x - xr) * xu;
-      const ey = ((ys[i] ?? 0) - yr) * yu;
-      const ep = ((prevYs[i] ?? 0) - yr) * yu;
+      const ex = (this.tx(x) - xr) * xu;
+      const ey = (this.ty(ys[i] ?? 0) - yr) * yu;
+      const ep = (this.ty(prevYs[i] ?? 0) - yr) * yu;
       const t = this.tailScratch;
       t[0] = ex;
       t[1] = ey;
@@ -802,12 +888,12 @@ export class GpuSeries {
   private mapFor(s: Slot, view: View): [number, number, number, number] {
     const { xr, xu, yr, yu } = s.enc;
     const p = this.plotR;
-    const ex0 = (view.x[0] - xr) * xu;
-    const ex1 = (view.x[1] - xr) * xu;
+    const ex0 = (this.tx(view.x[0]) - xr) * xu;
+    const ex1 = (this.tx(view.x[1]) - xr) * xu;
     const ax = p.w / (ex1 - ex0 || 1e-30);
     const bx = p.x - ex0 * ax;
-    const ey0 = (view.y[0] - yr) * yu;
-    const ey1 = (view.y[1] - yr) * yu;
+    const ey0 = (this.ty(view.y[0]) - yr) * yu;
+    const ey1 = (this.ty(view.y[1]) - yr) * yu;
     const ay = p.h / (ey1 - ey0 || 1e-30);
     const by = p.y + ey1 * ay;
     return [ax, bx, ay, by];
@@ -928,7 +1014,7 @@ export class GpuSeries {
     const s = this.slots[slot];
     if (!s || s.n < 2) return;
     const map = this.mapFor(s, view);
-    const baseEnc = (baseVal - s.enc.yr) * s.enc.yu;
+    const baseEnc = (this.ty(baseVal) - s.enc.yr) * s.enc.yu;
     const baseCss = map[3] - baseEnc * map[2];
     const p = this.plotR;
     if (this.decimateWanted(s)) {

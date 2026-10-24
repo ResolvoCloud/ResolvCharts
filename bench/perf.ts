@@ -123,6 +123,7 @@ const baseCtx = {
   theme: lightTheme,
   opts: { type: "line", animate: false, data: { x: [], series: [] } },
   data: xyData,
+  hidden: new Set<number>(),
   xScale,
   yScale,
   t: 1,
@@ -718,6 +719,183 @@ const { decimateSeriesPx } = await import("../src/core/decimate");
 bench("A decimateSeriesPx (closures)", () => {
   decimateSeriesPx(sortedX, y0, null, 1, 0, xScale, yScale, plot.w, 0);
 });
+
+console.log("\n== gap / log code paths ==");
+
+const yGaps = Float64Array.from(y0);
+const gapIndex: number[] = [];
+for (let i = 0; i < N; i += 97) {
+  yGaps[i] = NaN; // ~1% missing
+  gapIndex.push(i);
+}
+
+bench("decimateSeriesPx clean (gaps=false)", () => {
+  decimateSeriesPx(
+    sortedX,
+    y0,
+    null,
+    1,
+    0,
+    xScale,
+    yScale,
+    plot.w,
+    0,
+    undefined,
+    false,
+  );
+});
+bench("decimateSeriesPx ~1% gaps (legacy loop)", () => {
+  decimateSeriesPx(
+    sortedX,
+    yGaps,
+    null,
+    1,
+    0,
+    xScale,
+    yScale,
+    plot.w,
+    0,
+    undefined,
+    true,
+  );
+});
+bench("decimateSeriesPx ~1% gaps (gapIdx runs)", () => {
+  decimateSeriesPx(
+    sortedX,
+    yGaps,
+    null,
+    1,
+    0,
+    xScale,
+    yScale,
+    plot.w,
+    0,
+    undefined,
+    true,
+    gapIndex,
+  );
+});
+
+const { logScale } = await import("../src/core/scales");
+const { mapSeriesPx } = await import("../src/core/decimate");
+const logYScale = logScale(1, 200, plot.y + plot.h, plot.y);
+const logXScale = logScale(1, N, plot.x, plot.x + plot.w);
+const xsLog = new Float64Array(N);
+const y0Log = new Float64Array(N);
+const xsL = new Float64Array(N);
+const invL10 = 1 / Math.log(10);
+for (let i = 0; i < N; i++) {
+  xsLog[i] = i + 1;
+  y0Log[i] = Math.log(y0[i] as number) * invL10;
+  xsL[i] = Math.log(i + 1) * invL10;
+}
+function logMapBench(a: Float64Array): Float64Array {
+  const o = new Float64Array(a.length);
+  for (let i = 0; i < a.length; i++) {
+    const v = a[i] as number;
+    o[i] = v > 0 ? Math.log(v) * invL10 : NaN;
+  }
+  return o;
+}
+
+bench("mapSeriesPx log-y 100k (pre-transformed)", () => {
+  mapSeriesPx(
+    sortedX,
+    y0Log,
+    null,
+    1,
+    0,
+    xScale,
+    logYScale,
+    0,
+    { y: 10 },
+    false,
+    { y: true },
+  );
+});
+bench("mapSeriesPx log-y 100k (raw fallback)", () => {
+  mapSeriesPx(sortedX, y0, null, 1, 0, xScale, logYScale, 0, { y: 10 });
+});
+bench("decimateSeriesPx log-y (pre-transformed)", () => {
+  decimateSeriesPx(
+    sortedX,
+    y0Log,
+    null,
+    1,
+    0,
+    xScale,
+    logYScale,
+    plot.w,
+    0,
+    { y: 10 },
+    false,
+    undefined,
+    { y: true },
+  );
+});
+bench("decimateSeriesPx log-y (raw fallback)", () => {
+  decimateSeriesPx(
+    sortedX,
+    y0,
+    null,
+    1,
+    0,
+    xScale,
+    logYScale,
+    plot.w,
+    0,
+    { y: 10 },
+    true,
+  );
+});
+bench("decimateSeriesPx log-x (pre-transformed)", () => {
+  decimateSeriesPx(
+    xsL,
+    y0,
+    null,
+    1,
+    0,
+    logXScale,
+    yScale,
+    plot.w,
+    0,
+    { x: 10 },
+    false,
+    undefined,
+    { x: true },
+  );
+});
+bench("decimateSeriesPx log-x (column thresholds)", () => {
+  decimateSeriesPx(
+    xsLog,
+    y0,
+    null,
+    1,
+    0,
+    logXScale,
+    yScale,
+    plot.w,
+    0,
+    { x: 10 },
+    false,
+  );
+});
+
+const rLogY = {
+  ...baseCtx,
+  opts: { ...baseCtx.opts, yScale: "log" as const },
+  yScale: logYScale,
+  data: {
+    ...xyData,
+    series: xyData.series.map((s) => ({
+      ...s,
+      yLog: logMapBench(s.y),
+    })),
+  },
+};
+bench("renderLine 2x100k log-y", () =>
+  renderLine(rLogY as unknown as Parameters<typeof renderLine>[0], false),
+);
 
 function decimateFlat(
   xs: Float64Array,

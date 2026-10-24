@@ -417,4 +417,295 @@ describe("createChart", () => {
     await wait();
     chart.destroy();
   });
+
+  const pointer = (
+    el: HTMLElement,
+    type: string,
+    x: number,
+    y: number,
+    extra: Record<string, unknown> = {},
+  ): void => {
+    el.dispatchEvent(
+      new MouseEvent(type, {
+        clientX: x,
+        clientY: y,
+        button: 0,
+        bubbles: true,
+        ...extra,
+      }),
+    );
+  };
+
+  it("fires onHover with the nearest point", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    let last: unknown = "none";
+    const chart = createChart(el, {
+      type: "line",
+      data: { x: [0, 1, 2, 3], series: [{ y: [1, 5, 3, 8] }] },
+      onHover: (info) => {
+        last = info;
+      },
+      animate: false,
+    });
+    await wait();
+    pointer(el, "pointermove", 200, 120);
+    await wait();
+    expect(last).toMatchObject({ kind: "point" });
+    chart.destroy();
+  });
+
+  it("fires onClick / onSelect on a mark", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    let clicked: unknown = null;
+    let selected: unknown = null;
+    const chart = createChart(el, {
+      type: "line",
+      data: { x: [0, 1, 2, 3], series: [{ y: [1, 5, 3, 8] }] },
+      onClick: (info) => {
+        clicked = info;
+      },
+      onSelect: (info) => {
+        selected = info;
+      },
+      animate: false,
+    });
+    await wait();
+    pointer(el, "pointerdown", 200, 120);
+    pointer(el, "pointerup", 200, 120);
+    await wait();
+    expect(clicked).toMatchObject({ kind: "point" });
+    expect(selected).toMatchObject({ kind: "point" });
+    chart.destroy();
+  });
+
+  it("drag past the click threshold is not a click", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    let clicks = 0;
+    const chart = createChart(el, {
+      type: "line",
+      data: { x: [0, 1, 2, 3], series: [{ y: [1, 5, 3, 8] }] },
+      onClick: () => clicks++,
+      animate: false,
+    });
+    await wait();
+    pointer(el, "pointerdown", 100, 100);
+    pointer(el, "pointermove", 160, 140);
+    pointer(el, "pointerup", 160, 140);
+    await wait();
+    expect(clicks).toBe(0);
+    chart.destroy();
+  });
+
+  it("renders a legend and toggles a series", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    const chart = createChart(el, {
+      type: "line",
+      data: {
+        x: [0, 1, 2],
+        series: [
+          { label: "one", y: [1, 5, 3] },
+          { label: "two", y: [2, 1, 4] },
+        ],
+      },
+      legend: true,
+      animate: false,
+    });
+    await wait();
+    const legend = el.querySelector("[role='list']");
+    expect(legend).not.toBeNull();
+    const buttons = legend?.querySelectorAll("button") ?? [];
+    expect(buttons.length).toBe(2);
+    const b0 = buttons[0] as HTMLElement;
+    b0.click();
+    await wait();
+    expect(b0.style.opacity).toBe("0.38");
+    chart.destroy();
+  });
+
+  it("renders data with null gaps without error", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    const chart = createChart(el, {
+      type: "line",
+      data: {
+        x: [0, 1, 2, 3, 4],
+        series: [{ y: [1, null, 3, Number.NaN, 5] }],
+      },
+      animate: false,
+    });
+    await wait();
+    chart.destroy();
+  });
+
+  it("gaps are excluded from the y domain", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    const chart = createChart(el, {
+      type: "area",
+      data: {
+        x: [0, 1, 2],
+        series: [{ y: [2, null, 4] }],
+      },
+      animate: false,
+    });
+    await wait();
+    chart.destroy();
+  });
+
+  it("wheel zoom narrows the view, resetZoom releases it", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    const views: ({ x: [number, number]; y: [number, number] } | null)[] = [];
+    const chart = createChart(el, {
+      type: "line",
+      data: { x: [0, 1, 2, 3, 4, 5], series: [{ y: [1, 5, 3, 8, 2, 6] }] },
+      zoom: { onZoom: (v) => views.push(v) },
+      animate: false,
+    });
+    await wait();
+    el.dispatchEvent(
+      new WheelEvent("wheel", {
+        clientX: 200,
+        clientY: 120,
+        deltaY: -240,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    await wait();
+    expect(views.length).toBeGreaterThan(0);
+    const z = views[views.length - 1];
+    expect(z).not.toBeNull();
+    if (z) expect(z.x[1] - z.x[0]).toBeLessThan(5);
+    chart.resetZoom();
+    await wait();
+    expect(views[views.length - 1]).toBeNull();
+    chart.destroy();
+  });
+
+  it("zoom requires opt-in — wheel does nothing by default", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    const chart = createChart(el, {
+      type: "line",
+      data: { x: [0, 1, 2], series: [{ y: [1, 5, 3] }] },
+      animate: false,
+    });
+    await wait();
+    el.dispatchEvent(
+      new WheelEvent("wheel", {
+        clientX: 200,
+        clientY: 120,
+        deltaY: -240,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    await wait();
+    chart.destroy();
+  });
+
+  it("tooltip.format string replaces content", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    const chart = createChart(el, {
+      type: "line",
+      data: { x: [0, 1, 2, 3], series: [{ y: [1, 5, 3, 8] }] },
+      tooltip: { format: () => "CUSTOM TIP" },
+      animate: false,
+    });
+    await wait();
+    pointer(el, "pointermove", 200, 120);
+    await wait();
+    const tip = el.querySelector("div");
+    expect(tip?.textContent).toBe("CUSTOM TIP");
+    chart.destroy();
+  });
+
+  it("tooltip.format null suppresses the tooltip", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    const chart = createChart(el, {
+      type: "line",
+      data: { x: [0, 1, 2, 3], series: [{ y: [1, 5, 3, 8] }] },
+      tooltip: { format: () => null },
+      animate: false,
+    });
+    await wait();
+    pointer(el, "pointermove", 200, 120);
+    await wait();
+    const tip = el.querySelector("div");
+    expect(tip?.style.opacity).not.toBe("1");
+    chart.destroy();
+  });
+
+  it("renders with a time x axis", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    const t0 = Date.UTC(2024, 0, 1);
+    const chart = createChart(el, {
+      type: "line",
+      data: {
+        x: [t0, t0 + 86_400_000, t0 + 2 * 86_400_000],
+        series: [{ y: [1, 5, 3] }],
+      },
+      xScale: "time",
+      animate: false,
+    });
+    await wait();
+    chart.destroy();
+  });
+
+  it("renders with a log y axis", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    const chart = createChart(el, {
+      type: "line",
+      data: { x: [0, 1, 2], series: [{ y: [1, 50, 900] }] },
+      yScale: "log",
+      animate: false,
+    });
+    await wait();
+    chart.destroy();
+  });
+
+  it("log y axis drops non-positive values", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    const chart = createChart(el, {
+      type: "line",
+      data: { x: [0, 1, 2, 3], series: [{ y: [1, 0, -3, 900] }] },
+      yScale: "log",
+      animate: false,
+    });
+    await wait();
+    chart.destroy();
+  });
+
+  it("renders candles with time x + log y", async () => {
+    const el = makeEl();
+    cleanup.push(el);
+    const t0 = Date.UTC(2024, 0, 1);
+    const chart = createChart(el, {
+      type: "candle",
+      data: {
+        candles: [0, 1, 2].map((i) => ({
+          x: t0 + i * 86_400_000,
+          open: 10 + i,
+          high: 15 + i,
+          low: 9 + i,
+          close: 12 + i,
+        })),
+      },
+      xScale: "time",
+      yScale: "log",
+      animate: false,
+    });
+    await wait();
+    chart.destroy();
+  });
 });

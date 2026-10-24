@@ -3,6 +3,7 @@ import {
   boundDomain,
   extent,
   linearScale,
+  logScale,
   padDomain,
 } from "../src/core/scales";
 
@@ -23,6 +24,31 @@ describe("linearScale", () => {
   it("handles degenerate domain", () => {
     const s = linearScale(5, 5, 0, 100);
     expect(Number.isFinite(s(5))).toBe(true);
+  });
+});
+
+describe("logScale", () => {
+  it("maps decades evenly", () => {
+    const s = logScale(1, 1000, 0, 300);
+    expect(s(1)).toBe(0);
+    expect(s(10)).toBeCloseTo(100);
+    expect(s(100)).toBeCloseTo(200);
+    expect(s(1000)).toBe(300);
+  });
+  it("invert round-trips", () => {
+    const s = logScale(0.01, 100, 400, 0);
+    expect(s.invert(s(1))).toBeCloseTo(1);
+    expect(s.invert(s(50))).toBeCloseTo(50);
+  });
+  it("non-positive inputs map to NaN (gap)", () => {
+    const s = logScale(1, 100, 0, 100);
+    expect(s(0)).toBeNaN();
+    expect(s(-5)).toBeNaN();
+    expect(s(Number.NaN)).toBeNaN();
+  });
+  it("handles degenerate domain", () => {
+    const s = logScale(7, 7, 0, 100);
+    expect(Number.isFinite(s(7))).toBe(true);
   });
 });
 

@@ -13,3 +13,4 @@ site/src/content/docs/api
 site/public/resolvcharts.global.min.js
 .npmrc
 .env
+*.png

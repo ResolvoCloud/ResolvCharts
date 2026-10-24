@@ -2,9 +2,15 @@ export { Chart, createChart } from "./core/chart";
 export { decimateM4 } from "./core/decimate";
 export { formatNumber, formatSI } from "./core/format";
 export { nearestIndex } from "./core/hit";
-export { boundDomain, extent, linearScale, padDomain } from "./core/scales";
+export {
+  boundDomain,
+  extent,
+  linearScale,
+  logScale,
+  padDomain,
+} from "./core/scales";
 export { darkTheme, lightTheme, resolveTheme } from "./core/theme";
-export { computeTicks } from "./core/ticks";
+export { computeTicks, logTicks, timeFormatter, timeTicks } from "./core/ticks";
 export type {
   CategoryData,
   CategorySeriesInput,
@@ -16,13 +22,18 @@ export type {
   DonutData,
   DonutSlice,
   HoverInfo,
+  LegendOptions,
   OHLCCandle,
   OHLCData,
   Rect,
   Scale,
   SeriesInput,
   ThemeTokens,
+  TooltipContent,
+  TooltipFormatter,
   TooltipOptions,
+  TooltipRow,
   WaterfallData,
   XYData,
+  ZoomOptions,
 } from "./core/types";

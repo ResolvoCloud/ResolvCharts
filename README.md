@@ -158,12 +158,15 @@ Universal:
 | `accent` | — | Primary series color |
 | `curve` | `"linear"` | `linear` `step` `smooth` (monotone cubic, never overshoots) |
 | `grid` | `true` | Faint horizontal gridlines |
-| `tooltip` | auto | Hover tooltip (off for sparkline) |
-| `legend` | — | Reserved |
+| `tooltip` | auto | Hover tooltip (off for sparkline); object form: `{ radius, format }` |
+| `legend` | — | Series legend — `true` or `{ position, toggle }`; click an item to hide/show its series |
+| `zoom` | — | `true` or `{ wheel, drag: "select" \| "pan", axes: "x" \| "y" \| "xy", dblclick, onZoom }` — wheel zoom + drag-select/drag-pan + double-click reset |
 | `animate` | `true` | `true` = 400 ms, a number = custom ms; respects `prefers-reduced-motion` |
 | `height` | — | Chart height in px |
 | `labels` | — | `{x?: (v)=>string, y?: (v)=>string}` tick formatters |
 | `onHover` | — | `(info \| null) => void` |
+| `onClick` | — | `(info \| null, ev) => void` — hit under the cursor, or `null` on empty space |
+| `onSelect` | — | `(info \| null) => void` — persistent selection; click a mark to select, empty space to clear |
 
 xy charts (`line` `area` `scatter` `bubble` `rangearea` `sparkline` `baseline`):
 
@@ -172,7 +175,9 @@ xy charts (`line` `area` `scatter` `bubble` `rangearea` `sparkline` `baseline`):
 | `flow` | `false` | Continuous-flow mode — ripple easing + tween duration auto-follows append cadence |
 | `window` | — | Visible points in the sliding window |
 | `maxPoints` | — | Hard cap on retained datapoints during `append()`; shows last N when `window` is unset |
-| `renderer` | `"canvas"` | `"webgpu"` rasterizes series on the GPU; `"auto"` uses it when available |
+| `xScale` | `"linear"` | `"time"` = calendar ticks on epoch-ms x values; `"log"` = logarithmic (x must be positive) |
+| `renderer` | `"auto"` | `"webgpu"` rasterizes series on the GPU; `"canvas"` forces Canvas2D |
+| `gpuThreshold` | `50000` | Total point count at which `"auto"` engages WebGPU |
 | `gpu` | — | WebGPU adapter options (`powerPreference`, `compat`, `timing`) |
 
 Type-specific:
@@ -181,7 +186,11 @@ Type-specific:
 |---|---|---|
 | `stacked` | `false` | `bar`/`combo`: stack column series per category |
 | `baseline` | first value | `baseline` chart reference value |
+| `yScale` | `"linear"` | `"log"` = logarithmic y axis (non-positive values render as gaps) |
+| `logBase` | `10` | Logarithm base for `log` scales |
 | `canvas` | — | `getContext("2d", …)` settings for all layers, e.g. `{ willReadFrequently: true }` |
+
+Missing data: `null`, `NaN`, and non-finite values in `y`, `y2`, `r`, or `values` render as gaps — lines break across them, fills split into runs, and they are excluded from domains and hit testing. Non-finite `x` values are dropped.
 
 ## Theming
 
@@ -204,6 +213,7 @@ Tokens: `bg` `text` `textMuted` `grid` `axisBaseline` `crosshair` `series[]` `co
 chart.setData(newData);  // animated transition; shape must match `type`
 chart.append(x, y);      // streaming: append one sample (xy charts)
                          // number → single series, number[] → per-series value
+chart.resetZoom();       // release the zoom/pan view (double-click also resets)
 chart.resize();          // manual resize (ResizeObserver handles automatically)
 chart.destroy();
 ```
@@ -232,6 +242,7 @@ The viewport (x/y domain) animates toward the new domain on every `append()` —
 - Columnar `Float64Array` internals, binary-search hit testing
 - Zero-allocation streaming — steady-state `append()` reuses buffers via `copyWithin` and buffer ping-pong
 - O(n) monotonic fast path — already-sorted data skips the index sort entirely
+- Feature-gated slow paths — gap detection and log transforms run per-series only when the data/config needs them; clean linear data uses the original verbatim loops (see [Feature costs](./BENCHMARK_COMPARISON.md#feature-costs-v050))
 
 ### Benchmarks
 
@@ -239,13 +250,13 @@ Same machine, browser, data, and chart size (900×240, two series). Methodology 
 
 | | resolvcharts | Chart.js 4.5 | ApexCharts 8.3 | Highcharts 13.1 |
 |---|---|---|---|---|
-| Line render, 1M pts ×2 | **0.20 ms** | 136–1380 ms | 484 ms | 248–3194 ms |
+| Line render, 1M pts ×2 | **0.18 ms** | 127–1410 ms | 424 ms | 256–3323 ms |
 | Streaming, 50k window | **120 fps** | 15 fps | 17 fps | 13 fps |
-| Bundle (gzip) | **21.4 KB** | 70.7 KB | 269.8 KB | 102.3 KB |
+| Bundle (gzip) | **31.8 KB** | 70.7 KB | 269.8 KB | 102.3 KB |
 
-Chart.js range = built-in decimation on/off; Highcharts range = WebGL boost module on/off. Even the Canvas2D fallback (3.5 ms at 1M) is ~39× faster than the best competitor configuration.
+Chart.js range = built-in decimation on/off; Highcharts range = WebGL boost module on/off. Even the Canvas2D fallback (4.1 ms at 1M) is ~31× faster than the best competitor configuration.
 
-Last benchmarked as of Oct 18, 2026
+*Last benchmarked as of 24 October 2026*
 ---
 
 A project by [Resolvo Cloud](https://resolvocloud.com)

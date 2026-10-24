@@ -2,7 +2,7 @@ import { withAlpha } from "../core/color";
 import type { HoverInfo, NormalizedCategory } from "../core/types";
 import { GAP_RATIO, MAX_BAR_W, RADIUS, topRounded } from "./bar";
 import type { RenderContext } from "./registry";
-import { traceCurve } from "./registry";
+import { axisBase, traceCurve, visibleSeries } from "./registry";
 
 type CatSeries = NormalizedCategory["series"][number];
 
@@ -11,7 +11,7 @@ let ovScratch = new Float64Array(0);
 
 function overlayPath(r: RenderContext, pts: Float64Array, n: number): Path2D {
   const path = new Path2D();
-  traceCurve(path, pts, n, r.opts.curve ?? "linear");
+  traceCurve(path, pts, n, r.opts.curve ?? "linear", false, r.opts.tension);
   return path;
 }
 
@@ -26,30 +26,36 @@ export function renderCombo(r: RenderContext): void {
   const cats = d.categories.length;
   const slot = r.plot.w / Math.max(1, cats);
   const animate = r.t < 1;
+  const vis = visibleSeries(d.series.length, r.hidden);
   const valAt = (s: CatSeries, ci: number): number => {
-    const cur = s.values[ci] ?? 0;
-    const prev = s.prevValues?.[ci] ?? 0;
-    return animate ? prev + (cur - prev) * r.t : cur;
+    const cur = s.values[ci] as number;
+    if (!Number.isFinite(cur)) return NaN;
+    if (!animate) return cur;
+    const pv = s.prevValues?.[ci] as number;
+    const prev = Number.isFinite(pv) ? pv : 0;
+    return prev + (cur - prev) * r.t;
   };
 
   let nCols = 0;
-  for (const s of d.series) if (s.kind === "column") nCols++;
+  for (const si of vis) if (d.series[si]?.kind === "column") nCols++;
   if (r.opts.stacked) {
     const w = Math.min(slot * (1 - GAP_RATIO), MAX_BAR_W);
     for (let ci = 0; ci < cats; ci++) {
       const x = r.plot.x + slot * ci + (slot - w) / 2;
       let pos = 0;
       let neg = 0;
-      for (const s of d.series) {
-        if (s.kind !== "column") continue;
+      for (const si of vis) {
+        const s = d.series[si];
+        if (s?.kind !== "column") continue;
         const v = valAt(s, ci);
+        if (!Number.isFinite(v)) continue;
         const v0 = v >= 0 ? pos : neg + v;
         const v1 = v >= 0 ? pos + v : neg;
         if (v >= 0) pos = v1;
         else neg = v0;
         const yTop = r.yScale(Math.max(v0, v1));
         const h = Math.abs(r.yScale(Math.min(v0, v1)) - yTop);
-        if (h <= 0) continue;
+        if (h <= 0 || !Number.isFinite(h)) continue;
         ctx.fillStyle = s.color;
         ctx.fillRect(x, yTop, w, h);
       }
@@ -57,15 +63,18 @@ export function renderCombo(r: RenderContext): void {
   } else {
     const groupW = Math.min(slot * (1 - GAP_RATIO), MAX_BAR_W * nCols);
     const barW = groupW / Math.max(1, nCols);
-    const base = r.yScale(0);
+    const base = axisBase(r);
     let k = 0;
-    for (const s of d.series) {
-      if (s.kind !== "column") continue;
+    for (const si of vis) {
+      const s = d.series[si];
+      if (s?.kind !== "column") continue;
       ctx.fillStyle = s.color;
       for (let ci = 0; ci < cats; ci++) {
         const v = valAt(s, ci);
+        if (!Number.isFinite(v)) continue;
         const x = r.plot.x + slot * ci + (slot - groupW) / 2 + barW * k;
         const yv = r.yScale(v);
+        if (!Number.isFinite(yv)) continue;
         const y = Math.min(base, yv);
         const h = Math.abs(base - yv);
         if (h <= 0) continue;
@@ -75,22 +84,44 @@ export function renderCombo(r: RenderContext): void {
     }
   }
 
-  // overlays ride on category centers
+  // overlays ride on category centers; NaN values break the path
   const base = r.yScale(Math.max(0, r.yScale.domain[0]));
   if (ovScratch.length < cats * 2) ovScratch = new Float64Array(cats * 2);
   const pts = ovScratch;
-  for (const s of d.series) {
-    if (s.kind === "column") continue;
+  for (const si of vis) {
+    const s = d.series[si];
+    if (!s || s.kind === "column") continue;
     for (let ci = 0; ci < cats; ci++) {
       pts[2 * ci] = r.plot.x + slot * (ci + 0.5);
       pts[2 * ci + 1] = r.yScale(valAt(s, ci));
     }
     const path = overlayPath(r, pts, cats);
-    if (s.kind === "area" && cats > 1) {
-      const area = new Path2D(path);
-      area.lineTo(pts[2 * (cats - 1)] as number, base);
-      area.lineTo(pts[0] as number, base);
-      area.closePath();
+    if (s.kind === "area" && cats > 1 && Number.isFinite(base)) {
+      const area = new Path2D();
+      // close each finite run down to the base
+      let i = 0;
+      while (i < cats) {
+        if (!Number.isFinite(pts[2 * i + 1] as number)) {
+          i++;
+          continue;
+        }
+        let j = i + 1;
+        while (j < cats && Number.isFinite(pts[2 * j + 1] as number)) j++;
+        const seg = new Path2D();
+        traceCurve(
+          seg,
+          pts.subarray(2 * i, 2 * j),
+          j - i,
+          r.opts.curve ?? "linear",
+          false,
+          r.opts.tension,
+        );
+        area.addPath(seg);
+        area.lineTo(pts[2 * (j - 1)] as number, base);
+        area.lineTo(pts[2 * i] as number, base);
+        area.closePath();
+        i = j;
+      }
       const g = ctx.createLinearGradient(0, r.plot.y, 0, r.plot.y + r.plot.h);
       g.addColorStop(0, withAlpha(s.color, 0.16));
       g.addColorStop(1, withAlpha(s.color, 0));
@@ -117,12 +148,16 @@ export function hitCombo(r: RenderContext, px: number): HoverInfo | null {
   );
   const slot = r.plot.w / cats;
   let py = r.plot.y + r.plot.h;
-  const values = d.series.map((s) => {
-    const y = s.values[cat] ?? 0;
+  const values: { label: string; color: string; y: number }[] = [];
+  for (let i = 0; i < d.series.length; i++) {
+    const s = d.series[i];
+    if (!s || r.hidden.has(i)) continue;
+    const y = s.values[cat] as number;
+    if (!Number.isFinite(y)) continue;
     const sy = r.yScale(y);
     if (sy < py) py = sy;
-    return { label: s.label, color: s.color, y };
-  });
+    values.push({ label: s.label, color: s.color, y });
+  }
   return {
     kind: "point",
     index: cat,

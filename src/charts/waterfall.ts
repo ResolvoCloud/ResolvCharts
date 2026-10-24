@@ -26,6 +26,7 @@ function barColor(
   r: RenderContext,
   bar: { value: number; total: boolean },
 ): string {
+  if (!Number.isFinite(bar.value)) return r.theme.contextGray;
   if (bar.total) return r.theme.series[0] ?? r.theme.contextGray;
   return bar.value >= 0 ? r.theme.up : r.theme.down;
 }

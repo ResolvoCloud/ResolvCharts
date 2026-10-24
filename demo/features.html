@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>resolvcharts — feature test</title>
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; margin: 24px auto; max-width: 1100px; padding: 0 16px; background: #fafafa; }
+    h1 { font-size: 16px; }
+    .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(500px, 1fr)); }
+    .card { background: #fff; border: 1px solid #e8e8e8; border-radius: 10px; padding: 12px 14px; }
+    h3 { font-size: 13px; margin: 0 0 8px; }
+    .chart { height: 220px; }
+    #events { font: 11px/1.5 ui-monospace, monospace; white-space: pre; max-height: 110px; overflow: auto; background: #111; color: #8f8; padding: 8px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h1>resolvcharts 0.5.0 — feature test</h1>
+  <div id="events"></div>
+  <div class="grid">
+    <div class="card"><h3>Legend + tooltip.format + gaps + click/select</h3><div id="c1" class="chart"></div></div>
+    <div class="card"><h3>Zoom (wheel) + drag-select</h3><div id="c2" class="chart"></div></div>
+    <div class="card"><h3>Zoom (drag-pan)</h3><div id="c3" class="chart"></div></div>
+    <div class="card"><h3>Time x-axis</h3><div id="c4" class="chart"></div></div>
+    <div class="card"><h3>Log y-axis</h3><div id="c5" class="chart"></div></div>
+    <div class="card"><h3>Log x + log y</h3><div id="c6" class="chart"></div></div>
+    <div class="card"><h3>1M points — dense decimate</h3><div id="c7" class="chart"></div></div>
+    <div class="card"><h3>Candle + legend</h3><div id="c8" class="chart"></div></div>
+    <div class="card"><h3>Donut + legend toggle</h3><div id="c9" class="chart"></div></div>
+    <div class="card"><h3>Streaming append</h3><div id="c10" class="chart"></div></div>
+  </div>
+  <script type="module">
+    import { createChart } from "../dist/index.mjs";
+
+    const log = (m) => {
+      const e = document.getElementById("events");
+      e.textContent = `${new Date().toLocaleTimeString()} ${m}\n` + e.textContent;
+    };
+    window.__log = log;
+
+    const N = 2000;
+    const xs = [], ya = [], yb = [];
+    for (let i = 0; i < N; i++) {
+      xs.push(i);
+      ya.push(50 + 30 * Math.sin(i / 120) + (i % 7));
+      yb.push(40 + 25 * Math.cos(i / 200) + (i % 5));
+    }
+    for (let i = 400; i < 460; i++) ya[i] = null;   // gap run
+    for (let i = 1200; i < 1230; i++) yb[i] = null; // second gap
+    ya[900] = null;                                 // isolated gap
+
+    window.__charts = {};
+
+    // 1: legend + format + gaps + click/select
+    window.__charts.c1 = createChart(document.getElementById("c1"), {
+      type: "area",
+      data: { x: xs, series: [{ label: "alpha", y: ya }, { label: "beta", y: yb }] },
+      legend: { position: "top" },
+      zoom: true,
+      tooltip: {
+        format: (info) => ({
+          title: `idx ${info.index}`,
+          rows: info.values.map((v) => `${v.label}: ${v.y.toFixed(1)}`),
+        }),
+      },
+      onClick: (info) => log(`c1 click ${info ? `idx=${info.index}` : "empty"}`),
+      onSelect: (info) => log(`c1 select ${info ? `idx=${info.index}` : "cleared"}`),
+    });
+
+    // 2: wheel zoom + drag-select
+    window.__charts.c2 = createChart(document.getElementById("c2"), {
+      type: "line",
+      data: { x: xs, series: [{ label: "a", y: ya }] },
+      zoom: {
+        axes: "x",
+        drag: "select",
+        onZoom: (v) =>
+          log(v ? `c2 zoom x=[${v.x[0].toFixed(0)},${v.x[1].toFixed(0)}]` : "c2 zoom reset"),
+      },
+    });
+
+    // 3: drag-pan
+    window.__charts.c3 = createChart(document.getElementById("c3"), {
+      type: "line",
+      data: { x: xs, series: [{ label: "a", y: ya }] },
+      zoom: { axes: "x", drag: "pan" },
+    });
+
+    // 4: time axis — daily samples over ~3 months
+    const day = 864e5, t0 = Date.UTC(2024, 0, 1);
+    const tx = [], ty = [];
+    for (let i = 0; i < 90; i++) { tx.push(t0 + i * day); ty.push(30 + 20 * Math.sin(i / 9) + (i % 4)); }
+    window.__charts.c4 = createChart(document.getElementById("c4"), {
+      type: "line",
+      xScale: "time",
+      data: { x: tx, series: [{ label: "daily", y: ty }] },
+      legend: true,
+    });
+
+    // 5: log y — exponential series + a non-positive point (gap under log)
+    const lx = [], ly = [];
+    for (let i = 0; i < 400; i++) { lx.push(i); ly.push(Math.pow(1.03, i / 4) + (i % 3)); }
+    ly[200] = -5; ly[201] = 0; // non-positive → gap
+    window.__charts.c5 = createChart(document.getElementById("c5"), {
+      type: "line",
+      yScale: "log",
+      data: { x: lx, series: [{ label: "exp", y: ly }] },
+      zoom: true,
+    });
+
+    // 6: log x + log y
+    const ex = [], ey = [];
+    for (let i = 1; i <= 500; i++) { const v = Math.pow(1.02, i); ex.push(v); ey.push(v * 0.7 + 3); }
+    window.__charts.c6 = createChart(document.getElementById("c6"), {
+      type: "line",
+      xScale: "log",
+      yScale: "log",
+      data: { x: ex, series: [{ label: "power", y: ey }] },
+      zoom: true,
+    });
+
+    // 7: 1M points
+    const M = 1_000_000;
+    const bx = new Float64Array(M), by1 = new Float64Array(M), by2 = new Float64Array(M);
+    for (let i = 0; i < M; i++) {
+      bx[i] = i;
+      by1[i] = 50 + 30 * Math.sin(i / 5000) + 10 * Math.sin(i / 97);
+      by2[i] = 50 + 30 * Math.cos(i / 7000) + 10 * Math.sin(i / 131);
+    }
+    const t7 = performance.now();
+    window.__charts.c7 = createChart(document.getElementById("c7"), {
+      type: "line",
+      data: { x: bx, series: [{ y: by1 }, { y: by2 }] },
+      zoom: true,
+    });
+    log(`c7 1M-pt create ${(performance.now() - t7).toFixed(1)}ms`);
+
+    // 8: candles + legend
+    const candles = [];
+    let px0 = 100;
+    for (let i = 0; i < 300; i++) {
+      const o = px0, c = o + (Math.sin(i / 13) * 4);
+      candles.push({ x: i, open: o, high: Math.max(o, c) + 2, low: Math.min(o, c) - 2, close: c });
+      px0 = c;
+    }
+    window.__charts.c8 = createChart(document.getElementById("c8"), {
+      type: "candle",
+      data: { candles },
+      legend: true,
+    });
+
+    // 9: donut + legend toggle
+    window.__charts.c9 = createChart(document.getElementById("c9"), {
+      type: "donut",
+      data: { slices: [
+        { label: "Search", value: 44 }, { label: "Direct", value: 21 },
+        { label: "Social", value: 17 }, { label: "Referral", value: 12 },
+        { label: "Email", value: 6 },
+      ]},
+      legend: { position: "right", toggle: true },
+    });
+
+    // 10: streaming
+    const sx = [], sy = [];
+    for (let i = 0; i < 120; i++) { sx.push(i); sy.push(50 + 20 * Math.sin(i / 10)); }
+    let si = 120;
+    window.__charts.c10 = createChart(document.getElementById("c10"), {
+      type: "line",
+      flow: true,
+      window: 120,
+      data: { x: sx, series: [{ y: sy }] },
+    });
+    window.__stream = setInterval(() => {
+      window.__charts.c10.append(si, 50 + 20 * Math.sin(si / 10));
+      si++;
+      if (si > 260) clearInterval(window.__stream);
+    }, 80);
+
+    window.__ready = true;
+    log("all charts created");
+  </script>
+</body>
+</html>

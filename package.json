@@ -1,6 +1,6 @@
 {
   "name": "resolvcharts",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "A minimal, zero-dependency canvas charting library",
   "author": "Resolvo Cloud",
   "repository": {

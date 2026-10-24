@@ -18,6 +18,27 @@ export function linearScale(
 }
 
 /** @category Utilities
+ * Logarithmic scale from domain `[d0, d1]` (must be positive) to range
+ * `[r0, r1]`. Values `<= 0` map to `NaN` so they render as gaps. */
+export function logScale(
+  d0: number,
+  d1: number,
+  r0: number,
+  r1: number,
+  base = 10,
+): Scale {
+  const invLb = 1 / Math.log(base);
+  const l0 = Math.log(d0) * invLb;
+  const l1 = Math.log(d1) * invLb;
+  const lin = linearScale(l0, l1, r0, r1);
+  const fn = ((v: number) => (v > 0 ? lin(Math.log(v) * invLb) : NaN)) as Scale;
+  fn.invert = (px: number) => base ** lin.invert(px);
+  fn.domain = [d0, d1];
+  fn.range = [r0, r1];
+  return fn;
+}
+
+/** @category Utilities
  * `[min, max]` of `values`; degenerate inputs get a sane fallback domain. */
 export function extent(values: ArrayLike<number>): [number, number] {
   let min = Infinity;

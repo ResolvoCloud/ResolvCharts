@@ -27,11 +27,18 @@ export function donutGeometry(
   const cy = r.plot.y + r.plot.h / 2;
   const rOuter = Math.max(1, Math.min(r.plot.w, r.plot.h) / 2);
   const rInner = rOuter * innerRatio(r);
+  let total = 0;
+  for (const s of d.slices) total += s.value;
   const angles: { a0: number; a1: number }[] = [];
   let a = START;
   const sweep = Math.PI * 2 * Math.min(1, Math.max(0, t));
-  for (const s of d.slices) {
-    const frac = d.total > 0 ? s.value / d.total : 0;
+  for (let i = 0; i < d.slices.length; i++) {
+    const s = d.slices[i];
+    if (!s || r.hidden.has(i)) {
+      angles.push({ a0: a, a1: a });
+      continue;
+    }
+    const frac = total > 0 ? s.value / total : 0;
     const a1 = a + frac * sweep;
     angles.push({ a0: a, a1 });
     a = a + frac * Math.PI * 2;
@@ -44,10 +51,15 @@ export function renderDonut(r: RenderContext): void {
   const d = r.data;
   const ctx = r.ctx;
   const geo = donutGeometry(r, d, r.t);
+  let visTotal = 0;
+  let visCount = 0;
   for (let i = 0; i < d.slices.length; i++) {
     const s = d.slices[i];
+    if (!s || r.hidden.has(i)) continue;
+    visTotal += s.value;
+    visCount++;
     const an = geo.angles[i];
-    if (!s || !an || an.a1 - an.a0 <= 0) continue;
+    if (!an || an.a1 - an.a0 <= 0) continue;
     const a0 = an.a0 + GAP / 2;
     const a1 = an.a1 - GAP / 2;
     if (a1 <= a0) continue;
@@ -63,12 +75,12 @@ export function renderDonut(r: RenderContext): void {
     ctx.fillStyle = s.color;
     ctx.fill();
   }
-  if (r.opts.type !== "pie" && d.slices.length > 0 && r.t > 0.5) {
+  if (r.opts.type !== "pie" && visCount > 0 && r.t > 0.5) {
     ctx.fillStyle = r.theme.text;
     ctx.font = `600 20px ${r.theme.fontFamily}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.fillText(formatSI(d.total), geo.cx, geo.cy);
+    ctx.fillText(formatSI(visTotal), geo.cx, geo.cy);
   }
 }
 
@@ -87,10 +99,14 @@ export function hitDonut(
   let angle = Math.atan2(dy, dx);
   while (angle < START) angle += Math.PI * 2;
   while (angle >= START + Math.PI * 2) angle -= Math.PI * 2;
+  let visTotal = 0;
+  for (let i = 0; i < d.slices.length; i++) {
+    if (!r.hidden.has(i)) visTotal += d.slices[i]?.value ?? 0;
+  }
   for (let i = 0; i < geo.angles.length; i++) {
     const an = geo.angles[i];
     const s = d.slices[i];
-    if (!an || !s) continue;
+    if (!an || !s || r.hidden.has(i)) continue;
     if (angle >= an.a0 && angle < an.a1) {
       return {
         kind: "slice",
@@ -98,7 +114,7 @@ export function hitDonut(
         label: s.label,
         color: s.color,
         value: s.value,
-        share: d.total > 0 ? s.value / d.total : 0,
+        share: visTotal > 0 ? s.value / visTotal : 0,
         px,
         py,
       };

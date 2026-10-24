@@ -19,11 +19,13 @@ export function renderBubble(r: RenderContext): void {
   const fallback = r.yScale.domain[0];
   let lo = Infinity;
   let hi = -Infinity;
-  for (const s of d.series) {
-    const rr = s.r;
+  for (let si = 0; si < d.series.length; si++) {
+    if (r.hidden.has(si)) continue;
+    const rr = d.series[si]?.r;
     if (!rr) continue;
     for (let i = 0; i < rr.length; i++) {
       const v = rr[i] as number;
+      if (!Number.isFinite(v)) continue;
       if (v < lo) lo = v;
       if (v > hi) hi = v;
     }
@@ -42,7 +44,10 @@ export function renderBubble(r: RenderContext): void {
   ctx.beginPath();
   ctx.rect(r.plot.x, r.plot.y, r.plot.w, r.plot.h);
   ctx.clip();
-  for (const s of d.series) {
+  for (let si = 0; si < d.series.length; si++) {
+    if (r.hidden.has(si)) continue;
+    const s = d.series[si];
+    if (!s) continue;
     const y = s.y;
     const prev = s.prevY;
     const rr = s.r;
@@ -52,15 +57,17 @@ export function renderBubble(r: RenderContext): void {
     ctx.beginPath();
     for (let i = 0; i < d.sortedX.length; i++) {
       const x = r.xScale(d.sortedX[i] as number);
-      if (x < xMin || x > xMax) continue;
+      if (x < xMin || x > xMax || !Number.isFinite(x)) continue;
       let yv = y[i] as number;
+      if (!Number.isFinite(yv)) continue;
       if (lerp) {
-        const p = prev ? (prev[i] as number) : fallback;
+        const pv = prev ? (prev[i] as number) : NaN;
+        const p = Number.isFinite(pv) ? pv : fallback;
         yv = p + (yv - p) * t;
       }
       const yp = r.yScale(yv);
       const pr = rad(rr ? (rr[i] as number) : lo + span / 2);
-      if (pr <= 0) continue;
+      if (!Number.isFinite(yp) || !(pr > 0)) continue;
       ctx.moveTo(x + pr, yp);
       ctx.arc(x, yp, pr, 0, Math.PI * 2);
     }

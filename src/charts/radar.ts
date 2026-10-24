@@ -19,7 +19,10 @@ export function radarGeo(r: RenderContext, d: NormalizedCategory): RadarGeo {
   const cy = r.plot.y + r.plot.h / 2;
   const radius = Math.max(1, Math.min(r.plot.w, r.plot.h) / 2 - LABEL_PAD);
   let max = 0;
-  for (const s of d.series) {
+  for (let si = 0; si < d.series.length; si++) {
+    if (r.hidden.has(si)) continue;
+    const s = d.series[si];
+    if (!s) continue;
     for (let i = 0; i < s.values.length; i++) {
       const v = s.values[i] as number;
       if (v > max) max = v;
@@ -61,13 +64,22 @@ export function renderRadar(r: RenderContext): void {
   }
   ctx.stroke();
 
-  for (const s of d.series) {
+  const rVal = (s: (typeof d.series)[number], i: number): number => {
+    const cur = s.values[i] as number;
+    if (!Number.isFinite(cur)) return NaN;
+    if (!animate) return cur;
+    const pv = s.prevValues?.[i] as number;
+    const prev = Number.isFinite(pv) ? pv : 0;
+    return prev + (cur - prev) * r.t;
+  };
+  for (let si = 0; si < d.series.length; si++) {
+    if (r.hidden.has(si)) continue;
+    const s = d.series[si];
+    if (!s) continue;
     ctx.beginPath();
     for (let i = 0; i < n; i++) {
-      const cur = s.values[i] ?? 0;
-      const prev = s.prevValues?.[i] ?? 0;
-      const v = animate ? prev + (cur - prev) * r.t : cur;
-      const rr = (Math.max(0, v) / max) * radius;
+      const v = rVal(s, i);
+      const rr = Number.isFinite(v) ? (Math.max(0, v) / max) * radius : 0;
       const a = angleOf(i, n);
       const x = cx + Math.cos(a) * rr;
       const y = cy + Math.sin(a) * rr;
@@ -84,9 +96,8 @@ export function renderRadar(r: RenderContext): void {
     ctx.fillStyle = s.color;
     ctx.beginPath();
     for (let i = 0; i < n; i++) {
-      const cur = s.values[i] ?? 0;
-      const prev = s.prevValues?.[i] ?? 0;
-      const v = animate ? prev + (cur - prev) * r.t : cur;
+      const v = rVal(s, i);
+      if (!Number.isFinite(v)) continue;
       const rr = (Math.max(0, v) / max) * radius;
       const a = angleOf(i, n);
       const x = cx + Math.cos(a) * rr;
@@ -128,11 +139,14 @@ export function hitRadar(
   while (rel < 0) rel += Math.PI * 2;
   while (rel >= Math.PI * 2) rel -= Math.PI * 2;
   const i = Math.round((rel / (Math.PI * 2)) * n) % n;
-  const values = d.series.map((s) => ({
-    label: s.label,
-    color: s.color,
-    y: s.values[i] ?? 0,
-  }));
+  const values: { label: string; color: string; y: number }[] = [];
+  for (let si = 0; si < d.series.length; si++) {
+    const s = d.series[si];
+    if (!s || r.hidden.has(si)) continue;
+    const y = s.values[i] as number;
+    if (!Number.isFinite(y)) continue;
+    values.push({ label: s.label, color: s.color, y });
+  }
   return {
     kind: "point",
     index: i,
@@ -159,9 +173,12 @@ export function drawRadarHover(r: RenderContext, info: HoverInfo): void {
   o.moveTo(cx, cy);
   o.lineTo(cx + Math.cos(a) * radius, cy + Math.sin(a) * radius);
   o.stroke();
-  for (const s of d.series) {
-    const v = s.values[info.index] ?? 0;
-    const rr = (Math.max(0, v) / max) * radius;
+  for (let si = 0; si < d.series.length; si++) {
+    if (r.hidden.has(si)) continue;
+    const s = d.series[si];
+    if (!s) continue;
+    const v = s.values[info.index] as number;
+    const rr = Number.isFinite(v) ? (Math.max(0, v) / max) * radius : 0;
     o.fillStyle = s.color;
     o.strokeStyle = r.theme.bg;
     o.lineWidth = 2;

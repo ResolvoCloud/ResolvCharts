@@ -23,7 +23,7 @@ interface Stage {
  */
 function stages(r: RenderContext, d: NormalizedCategory, t: number): Stage[] {
   const s = d.series[0];
-  if (!s) return [];
+  if (!s || r.hidden.has(0)) return [];
   const n = d.categories.length;
   let max = 0;
   for (let i = 0; i < s.values.length; i++) {
@@ -34,12 +34,16 @@ function stages(r: RenderContext, d: NormalizedCategory, t: number): Stage[] {
   const rowH = r.plot.h / Math.max(1, n);
   const out: Stage[] = [];
   for (let i = 0; i < n; i++) {
-    const cur = s.values[i] ?? 0;
-    const prev = s.prevValues?.[i] ?? 0;
+    const cur = s.values[i] as number;
+    if (!Number.isFinite(cur)) continue;
+    const pv = s.prevValues?.[i] as number;
+    const prev = Number.isFinite(pv) ? pv : 0;
     const v = t < 1 ? prev + (cur - prev) * t : cur;
-    const cur1 = s.values[i + 1] ?? cur;
-    const prev1 = s.prevValues?.[i + 1] ?? 0;
-    const v1 = i + 1 < n ? (t < 1 ? prev1 + (cur1 - prev1) * t : cur1) : v;
+    const cur1 = (s.values[i + 1] as number) ?? cur;
+    const pv1 = s.prevValues?.[i + 1] as number;
+    const prev1 = Number.isFinite(pv1) ? pv1 : 0;
+    const c1 = Number.isFinite(cur1) ? cur1 : cur;
+    const v1 = i + 1 < n ? (t < 1 ? prev1 + (c1 - prev1) * t : c1) : v;
     out.push({
       cat: d.categories[i] ?? "",
       value: cur,

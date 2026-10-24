@@ -1,7 +1,7 @@
 import { withAlpha } from "../core/color";
-import { buildPath, hitXY } from "./line";
+import { fillRuns, hitXY, seriesPoints } from "./line";
 import type { RenderContext } from "./registry";
-import { isXY } from "./registry";
+import { isXY, traceCurve } from "./registry";
 
 /**
  * Baseline/delta chart: one line colored green above a reference value and
@@ -12,19 +12,25 @@ export function renderBaseline(r: RenderContext): void {
   if (!isXY(r.data)) return;
   const d = r.data;
   const s = d.series[0];
-  if (!s || d.sortedX.length === 0) return;
+  if (!s || d.sortedX.length === 0 || r.hidden.has(0)) return;
   const ctx = r.ctx;
   const base = r.opts.baseline ?? (s.y[0] as number);
   const basePx = Math.max(
     r.plot.y,
     Math.min(r.plot.y + r.plot.h, r.yScale(base)),
   );
-  const { path, firstX, lastX } = buildPath(r, s, base);
-
-  const area = new Path2D(path);
-  area.lineTo(lastX, basePx);
-  area.lineTo(firstX, basePx);
-  area.closePath();
+  const pts = seriesPoints(r, s, base);
+  const path = new Path2D();
+  traceCurve(
+    path,
+    pts,
+    pts.length / 2,
+    r.opts.curve ?? "linear",
+    false,
+    r.opts.tension,
+  );
+  const area = new Path2D();
+  fillRuns(r, area, pts, basePx);
 
   const regions: {
     top: number;

@@ -114,6 +114,24 @@ export const examples = [
   },
   {
     group: "XY",
+    title: "Cubic spline (tension 0.4)",
+    options: () => ({
+      type: "line",
+      curve: "cubic",
+      tension: 0.4,
+      data: {
+        x: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+        series: [
+          {
+            label: "Cubic",
+            y: [0, 20, 20, 60, 60, 120, 180, 120, 125, 105, 110, 170],
+          },
+        ],
+      },
+    }),
+  },
+  {
+    group: "XY",
     title: "Scatter",
     options: (d) => ({
       type: "scatter",

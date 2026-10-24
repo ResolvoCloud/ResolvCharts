@@ -46,24 +46,25 @@ export interface ThemeTokens {
 }
 
 /**
- * One series of an xy chart.
+ * One series of an xy chart. `null`/`NaN`/non-finite values are treated as
+ * missing data and rendered as gaps.
  * @category Data
  */
 export interface SeriesInput {
   label?: string;
   color?: string;
-  y: ArrayLike<number>;
+  y: ArrayLike<number | null>;
   /** For `bubble`: per-point radius value, scaled to a pixel range. */
-  r?: ArrayLike<number>;
+  r?: ArrayLike<number | null>;
   /** For `rangearea`: upper band edge; `y` is the lower edge. */
-  y2?: ArrayLike<number>;
+  y2?: ArrayLike<number | null>;
 }
 
-/** Data for xy charts (line, area, scatter, bubble, rangearea, sparkline, baseline). `x` may be unsorted — it is sorted internally.
+/** Data for xy charts (line, area, scatter, bubble, rangearea, sparkline, baseline). `x` may be unsorted — it is sorted internally; non-finite `x` values are dropped.
  * @category Data
  */
 export interface XYData {
-  x: ArrayLike<number>;
+  x: ArrayLike<number | null>;
   series: SeriesInput[];
 }
 
@@ -82,7 +83,8 @@ export interface CategorySeriesInput {
   color?: string;
   /** For `combo`: how this series renders (default `"column"`). */
   kind?: CategorySeriesKind;
-  values: ArrayLike<number>;
+  /** `null`/`NaN` values are treated as missing (no mark drawn). */
+  values: ArrayLike<number | null>;
 }
 
 /**
@@ -156,10 +158,12 @@ export type ChartData =
   | WaterfallData;
 
 /**
- * Segment interpolation: straight lines, step, or monotone cubic.
+ * Segment interpolation: straight lines, step, monotone cubic (`smooth`, never
+ * overshoots), or distance-weighted cubic (`cubic`, Chart.js-style splines that
+ * may overshoot, shaped by {@link ChartOptions.tension}).
  * @category Charts
  */
-export type CurveMode = "linear" | "step" | "smooth";
+export type CurveMode = "linear" | "step" | "smooth" | "cubic";
 
 /**
  * Payload passed to `ChartOptions.onHover`.
@@ -209,6 +213,38 @@ export type HoverInfo =
       py: number;
     };
 
+/** One row in the default tooltip layout.
+ * @category Charts
+ */
+export interface TooltipRow {
+  color?: string;
+  label: string;
+  value: string;
+}
+
+/** Return type for {@link TooltipOptions.format}.
+ * @category Charts
+ */
+export interface TooltipContent {
+  /** Bold header line (default: the hit's x/category label). */
+  title?: string;
+  /** Rows rendered with the default layout. */
+  rows?: TooltipRow[];
+  /** Raw HTML replacing the whole tooltip body. */
+  html?: string;
+}
+
+/**
+ * Custom tooltip content. `formatters` exposes the chart's active x/y label
+ * formatters. Return `null` to suppress the tooltip for this hit, a string
+ * for plain-text content, or a {@link TooltipContent} object.
+ * @category Charts
+ */
+export type TooltipFormatter = (
+  info: HoverInfo,
+  formatters: { x: (v: number) => string; y: (v: number) => string },
+) => TooltipContent | string | null;
+
 /**
  * Tooltip customization — pass as `tooltip: { ... }` in {@link ChartOptions}.
  * @category Charts
@@ -219,6 +255,41 @@ export interface TooltipOptions {
    * border-radius value (`"0"`, `"2px 6px"`, `"50%"`). Default `6px`.
    */
   radius?: number | string;
+  /** Custom content builder — see {@link TooltipFormatter}. */
+  format?: TooltipFormatter;
+}
+
+/**
+ * Legend display. Click an item to toggle its series (unless
+ * `toggle: false`).
+ * @category Charts
+ */
+export interface LegendOptions {
+  /** Edge the legend sits on. Default `"bottom"`. */
+  position?: "top" | "bottom" | "left" | "right";
+  /** Click-to-toggle series visibility. Default `true`. */
+  toggle?: boolean;
+}
+
+/**
+ * Zoom/pan interactions on numeric-x charts (xy + ohlc data). The view is
+ * released by double-click or {@link Chart.resetZoom}.
+ * @category Charts
+ */
+export interface ZoomOptions {
+  /** Mouse-wheel zoom around the cursor. Default `true`. */
+  wheel?: boolean;
+  /**
+   * Drag gesture: `"select"` draws a zoom box (default), `"pan"` drags the
+   * viewport, `false` disables dragging.
+   */
+  drag?: "select" | "pan" | false;
+  /** Axes zoom/pan affects. Default `"x"`. */
+  axes?: "x" | "y" | "xy";
+  /** Double-click resets the view. Default `true`. */
+  dblclick?: boolean;
+  /** Called whenever the view override changes (`null` after reset). */
+  onZoom?: (view: { x: [number, number]; y: [number, number] } | null) => void;
 }
 
 /**
@@ -232,13 +303,28 @@ export interface ChartOptions {
   /** Accent color applied to the first series. */
   accent?: string;
   curve?: CurveMode;
+  /**
+   * Spline tension 0–1 for `curve: "cubic"` — `0` draws straight lines,
+   * `1` is a very loose curve. Default `0.4` (Chart.js parity).
+   */
+  tension?: number;
   grid?: boolean;
   /**
    * `true`/`false` toggles the tooltip, or pass an object to customize it —
    * e.g. `{ radius: 0 }` for sharp corners (px number or CSS length).
    */
   tooltip?: boolean | TooltipOptions;
-  legend?: boolean;
+  /**
+   * Series legend — `true` shows it at the bottom, or pass
+   * {@link LegendOptions} to position it. Click an item to hide/show its
+   * series (disable with `toggle: false`).
+   */
+  legend?: boolean | LegendOptions;
+  /**
+   * Zoom/pan for numeric-x charts — `true` enables wheel zoom + drag-select
+   * + double-click reset, or pass {@link ZoomOptions}.
+   */
+  zoom?: boolean | ZoomOptions;
   /** `true` = 400 ms ease, a number = custom duration in ms, `false` = off. */
   animate?: boolean | number;
   /**
@@ -322,8 +408,25 @@ export interface ChartOptions {
    */
   yMin?: number;
   yMax?: number;
+  /**
+   * X-axis scale for xy/ohlc charts: `"linear"` (default), `"time"` places
+   * ticks on calendar boundaries (x = epoch ms), `"log"` maps values
+   * logarithmically (x must be positive).
+   */
+  xScale?: "linear" | "time" | "log";
+  /** Y-axis scale: `"linear"` (default) or `"log"` (values must be positive; non-positive values render as gaps). */
+  yScale?: "linear" | "log";
+  /** Logarithm base for `log` scales. Default `10`. */
+  logBase?: number;
   /** Called on pointer hover with the nearest hit, or `null` on leave. */
   onHover?: (info: HoverInfo | null) => void;
+  /** Called on click/tap with the hit under the cursor, or `null` on empty space. */
+  onClick?: (info: HoverInfo | null, ev: PointerEvent) => void;
+  /**
+   * Called when the persistent selection changes — a click on a mark selects
+   * it (and draws a marker), a click on empty space clears it.
+   */
+  onSelect?: (info: HoverInfo | null) => void;
 }
 
 /** Rectangle in pixel space.
@@ -351,17 +454,39 @@ export interface NormalizedSeries {
   color: string;
   y: Float64Array;
   prevY: Float64Array | null;
+  /** `y` contains NaN gaps — selects the gap-aware decimate path. */
+  hasGaps?: boolean;
+  /**
+   * Sorted indices of `y` positions that break the path (non-finite, or
+   * non-positive under `yScale: "log"`). Lets the decimator iterate finite
+   * runs verbatim instead of checking every point.
+   */
+  gapIdx?: number[] | undefined;
+  /**
+   * `log_b(y)` copy maintained under `yScale: "log"` (NaN where `y` is
+   * non-finite or non-positive — the same positions as `gapIdx`). Feeding
+   * display-space values to the decimator turns every per-point `Math.log`
+   * into a plain affine multiply.
+   */
+  yLog?: Float64Array | undefined;
+  /** Log-space twin of `prevY` — carried alongside it, never recomputed. */
+  prevYLog?: Float64Array | null;
   /** `bubble` radius channel (aligned to `sortedX`). */
   r: Float64Array | null;
   /** `rangearea` upper edge. */
   y2: Float64Array | null;
   prevY2: Float64Array | null;
+  /** Log-space twins of `y2`/`prevY2` (rangearea, `yScale: "log"` only). */
+  y2Log?: Float64Array | null;
+  prevY2Log?: Float64Array | null;
   pathCache: { key: string; path: Path2D } | null;
 }
 
 export interface NormalizedXY {
   kind: "xy";
   sortedX: Float64Array;
+  /** `log_b(sortedX)` under `xScale: "log"` — see {@link NormalizedSeries.yLog}. */
+  sortedXLog?: Float64Array | undefined;
   series: NormalizedSeries[];
 }
 
@@ -374,6 +499,8 @@ export interface NormalizedCategory {
     kind: CategorySeriesKind;
     values: Float64Array;
     prevValues: Float64Array | null;
+    /** `values` contains NaN gaps. */
+    hasGaps?: boolean;
   }[];
 }
 

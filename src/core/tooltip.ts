@@ -45,9 +45,22 @@ export class Tooltip {
     y: number,
     rows: { color?: string; label: string; value: string }[],
     title?: string,
+    custom?: { text?: string; html?: string },
   ): void {
     const el = this.el;
     el.textContent = "";
+    if (custom?.html != null) {
+      el.innerHTML = custom.html;
+      el.style.opacity = "1";
+      this.position(x, y);
+      return;
+    }
+    if (custom?.text != null) {
+      el.textContent = custom.text;
+      el.style.opacity = "1";
+      this.position(x, y);
+      return;
+    }
     if (title) {
       const t = document.createElement("div");
       t.style.cssText = `font-weight:600;margin-bottom:2px;color:${this.theme.tooltipText}`;

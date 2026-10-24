@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.5.0
+
+### Added
+
+- **Legend** — `legend: true | { position, toggle }`; click-to-toggle hides series/slices across rendering, domains, hit testing, tooltips, and GPU draws.
+- **Zoom / pan** — `zoom: true | ZoomOptions`; wheel zoom around the cursor, drag-select zoom box or drag-pan (`drag: "select" | "pan"`), per-axis control (`axes`), double-click or `chart.resetZoom()` to release, `onZoom` callback. Log axes zoom in log space.
+- **Click / select events** — `onClick(info | null, ev)` plus `onSelect` for persistent selection with accent markers; drags ≥6px don't count as clicks.
+- **Time-aware x axis** — `xScale: "time"`; calendar-boundary ticks (ms→years) with a span-aware formatter.
+- **Log scales** — `xScale: "log"`, `yScale: "log"`, `logBase`; non-positive values render as gaps; decade major ticks + minor gridlines.
+- **Gap / null handling** — `null`/`NaN`/non-finite normalize to NaN; decimators emit separators between finite runs; path builders, fills, hits, and GPU shaders all split or cull at gaps.
+- **Tooltip formatter** — `tooltip: { format(info, {x, y}) }` returning `{title, rows}`, `{html}`, a string, or `null` to suppress.
+- **`resolvcharts-solid`** — SolidJS wrapper package (workspace: `solid/`); props map 1:1 to `ChartOptions`, reactive `data` updates via `setData()`, `type` changes rebuild.
+
+### Performance
+
+- **`hasGaps` fast-path** — clean series run the verbatim v0.4.0 loops; gap checks cost nothing unless data actually contains gaps.
+- **Run-based decimation** — stored `gapIdx` break indices let the decimator iterate finite runs verbatim (gapped decimate 0.34 → 0.20 ms/100k).
+- **Cached `log_b` display-space arrays** (`sortedXLog`, `yLog`) — built once at `setData`, maintained in `append`; log-axis decimation and `mapSeriesPx` drop all per-point `Math.log` (log-y/log-x decimate ≈ clean linear; `renderLine` log-y 2×100k ≈ linear parity).
+- **`domains()` memoized** — zoom/pan no longer re-scan the dataset per event.
+- **WebGPU under log scales** — data encodes in log space (reusing the cached arrays) so the affine GPU map reproduces the log scale exactly.
+- **Legend inset cached** — no forced layout flush per `layout()` call.
+- Zero regressions vs 0.4.0 on clean data; per-config costs documented in `BENCHMARK_COMPARISON.md`.
+
+### Changed
+
+- **`gpuThreshold` default lowered to 50,000** (was 100,000) — the WebGPU path wins per-frame well below this size; the floor only gates one-time adapter/upload cost.
+
 ## 0.4.1
 
 ### Added
