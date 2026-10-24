@@ -1123,7 +1123,13 @@ export class GpuSeries {
     if (this.unavailable || (!this.draws.length && !this.cmps.length)) return;
     try {
       if (this.uOff > 0) {
-        this.device.queue.writeBuffer(this.ubuf, 0, this.uStage, 0, this.uOff / 4);
+        this.device.queue.writeBuffer(
+          this.ubuf,
+          0,
+          this.uStage,
+          0,
+          this.uOff / 4,
+        );
       }
       const encoder = this.device.createCommandEncoder();
       if (this.cmps.length) {

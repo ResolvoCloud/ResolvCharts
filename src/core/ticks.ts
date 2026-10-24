@@ -123,31 +123,31 @@ const pad2 = (v: number): string => (v < 10 ? `0${v}` : String(v));
 export function timeFormatter(span: number): (v: number) => string {
   if (span < 1000) {
     return (v) => {
-      let d = new Date(v);
+      const d = new Date(v);
       return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, "0")}`;
     };
   }
   if (span < DAY) {
     return (v) => {
-      let d = new Date(v);
+      const d = new Date(v);
       return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
     };
   }
   if (span < 60 * DAY) {
     return (v) => {
-      let d = new Date(v);
+      const d = new Date(v);
       return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
     };
   }
   if (span < 400 * DAY) {
     return (v) => {
-      let d = new Date(v);
+      const d = new Date(v);
       return `${MONTHS[d.getMonth()]} ${d.getDate()}`;
     };
   }
   if (span < 900 * DAY) {
     return (v) => {
-      let d = new Date(v);
+      const d = new Date(v);
       return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
     };
   }
@@ -178,9 +178,9 @@ export function logTicks(
   if (e1 - e0 <= 2) {
     const lo = Math.floor(Math.log(min) * invLb);
     for (let e = lo; e <= e1; e++) {
-      let p = base ** e;
+      const p = base ** e;
       for (let m = 2; m < base; m++) {
-        let v = m * p;
+        const v = m * p;
         if (v > min && v < max) minor.push(v);
         if (minor.length > 400) return { major, minor };
       }

@@ -51,9 +51,7 @@ dom.window.HTMLCanvasElement.prototype.getContext = (() =>
 const { renderLine } = await import("../src/charts/line");
 const { renderScatter } = await import("../src/charts/scatter");
 const { renderBubble } = await import("../src/charts/bubble");
-const { smoothPath, splinePath, traceCurve } = await import(
-  "../src/charts/registry"
-);
+const { splinePath, traceCurve } = await import("../src/charts/registry");
 const { decimateM4, decimateSeriesPx, mapSeriesPx } = await import(
   "../src/core/decimate"
 );
@@ -88,7 +86,7 @@ const y1 = new Float64Array(N);
 for (let i = 0; i < N; i++) {
   sortedX[i] = i;
   y0[i] = 50 + 30 * Math.sin(i / 500) + (i % 17);
-  y1[i] = y0[i] as number * 0.7 + 10;
+  y1[i] = (y0[i] as number) * 0.7 + 10;
 }
 // gappy variant (~1% NaN)
 const yGaps = Float64Array.from(y0);
@@ -125,7 +123,16 @@ type R = typeof baseCtx;
 // ============================================================================
 console.log("\n== 1. splinePath: Math.hypot vs sqrt ==");
 
-const decPts = decimateSeriesPx(sortedX, y0, null, 1, 0, xScale, yScale, plot.w);
+const decPts = decimateSeriesPx(
+  sortedX,
+  y0,
+  null,
+  1,
+  0,
+  xScale,
+  yScale,
+  plot.w,
+);
 const dn = decPts.length / 2;
 const rawPx = new Float64Array(N);
 const rawPy = new Float64Array(N);
@@ -197,7 +204,9 @@ bench("B splinePath sqrt (decimated)", () =>
 );
 
 // ============================================================================
-console.log("\n== 2. traceCurve linear: eachRun+segView vs fused single pass ==");
+console.log(
+  "\n== 2. traceCurve linear: eachRun+segView vs fused single pass ==",
+);
 
 function traceLinearFused(
   path: CanvasPath,
@@ -207,6 +216,7 @@ function traceLinearFused(
   let started = false;
   for (let i = 0; i < n; i++) {
     const y = pts[2 * i + 1] as number;
+    // biome-ignore lint/suspicious/noSelfCompare: intentional NaN check
     if (y !== y) {
       started = false;
       continue;
@@ -260,6 +270,7 @@ bench("B v!==v scan 100k (NaN only)", () => {
   let s = 0;
   for (let i = 0; i < N; i++) {
     const v = y0[i] as number;
+    // biome-ignore lint/suspicious/noSelfCompare: intentional NaN check
     if (v === v) s++;
   }
   void s;
@@ -529,6 +540,7 @@ function renderLineFused(r: R): void {
     let lastY = 0;
     for (let i = 0; i < n; i++) {
       const yv = ys[i] as number;
+      // biome-ignore lint/suspicious/noSelfCompare: intentional NaN check
       if (yv !== yv) {
         if (started) {
           path.lineTo(firstX, firstY);
@@ -675,10 +687,13 @@ function renderScatterInline(r: R): void {
     c2.beginPath();
     for (let i = 0; i < d.sortedX.length; i++) {
       const x = bx + (d.sortedX[i] as number) * kx;
+      // biome-ignore lint/suspicious/noSelfCompare: intentional NaN check
       if (x < xMin || x > xMax || x !== x) continue;
       const yv = y[i] as number;
+      // biome-ignore lint/suspicious/noSelfCompare: intentional NaN check
       if (yv !== yv) continue;
       const yp = by + yv * ky;
+      // biome-ignore lint/suspicious/noSelfCompare: intentional NaN check
       if (yp !== yp) continue;
       c2.moveTo(x + 2.5, yp);
       c2.arc(x, yp, 2.5, 0, Math.PI * 2);

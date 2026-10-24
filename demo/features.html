@@ -33,7 +33,7 @@
 
     const log = (m) => {
       const e = document.getElementById("events");
-      e.textContent = `${new Date().toLocaleTimeString()} ${m}\n` + e.textContent;
+      e.textContent = `${new Date().toLocaleTimeString()} ${m}\n${e.textContent}`;
     };
     window.__log = log;
 
@@ -98,7 +98,7 @@
 
     // 5: log y — exponential series + a non-positive point (gap under log)
     const lx = [], ly = [];
-    for (let i = 0; i < 400; i++) { lx.push(i); ly.push(Math.pow(1.03, i / 4) + (i % 3)); }
+    for (let i = 0; i < 400; i++) { lx.push(i); ly.push(1.03 ** (i / 4) + (i % 3)); }
     ly[200] = -5; ly[201] = 0; // non-positive → gap
     window.__charts.c5 = createChart(document.getElementById("c5"), {
       type: "line",
@@ -109,7 +109,7 @@
 
     // 6: log x + log y
     const ex = [], ey = [];
-    for (let i = 1; i <= 500; i++) { const v = Math.pow(1.02, i); ex.push(v); ey.push(v * 0.7 + 3); }
+    for (let i = 1; i <= 500; i++) { const v = 1.02 ** i; ex.push(v); ey.push(v * 0.7 + 3); }
     window.__charts.c6 = createChart(document.getElementById("c6"), {
       type: "line",
       xScale: "log",

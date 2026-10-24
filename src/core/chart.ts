@@ -1424,7 +1424,7 @@ export class Chart {
     const dom = this.view;
     const plot = this.backend.plot;
     let hid = "";
-    for (const h of this.hidden) hid += h + ",";
+    for (const h of this.hidden) hid += `${h},`;
     const gpu = this.gpu;
     const key = `${t}|${this.dataRev}|${this.backend.gridRev}|${dom.x[0]}|${dom.x[1]}|${dom.y[0]}|${dom.y[1]}|${plot.x}|${plot.y}|${plot.w}|${plot.h}|${hid}|${JSON.stringify(this.hover)}|${gpu ? (gpu.unavailable ? 2 : 1) : 0}`;
     if (this.frameKey === key) return;

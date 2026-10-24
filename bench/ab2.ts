@@ -204,6 +204,7 @@ function traceLinearFused(
   let started = false;
   for (let i = 0; i < n; i++) {
     const y = pts[2 * i + 1] as number;
+    // biome-ignore lint/suspicious/noSelfCompare: intentional NaN check
     if (y !== y) {
       started = false;
       continue;
@@ -329,12 +330,7 @@ const base = yScale(0);
 
 bench("A fillRuns (eachRun + segView + traceSeg)", () => {
   const p = new Path2D();
-  fillRuns(
-    baseCtx as unknown as Parameters<typeof fillRuns>[0],
-    p,
-    pts,
-    base,
-  );
+  fillRuns(baseCtx as unknown as Parameters<typeof fillRuns>[0], p, pts, base);
 });
 
 function fillRunsFused(
@@ -349,6 +345,7 @@ function fillRunsFused(
   for (let i = 0; i < n; i++) {
     const y = pts2[2 * i + 1] as number;
     const x = pts2[2 * i] as number;
+    // biome-ignore lint/suspicious/noSelfCompare: intentional NaN check
     if (y !== y) {
       if (started) {
         path.lineTo(lastX, baseY);
@@ -396,7 +393,7 @@ function extLet(xs: Float64Array): number {
   let min = Infinity;
   let max = -Infinity;
   for (let i = 0; i < xs.length; i++) {
-    let v = xs[i] as number;
+    const v = xs[i] as number;
     if (v < min) min = v;
     if (v > max) max = v;
   }
@@ -409,7 +406,7 @@ function extLet2(xs: Float64Array): number {
   let max = -Infinity;
   let i = 0;
   for (i = 1; i < xs.length; i++) {
-    let v = xs[i] as number;
+    const v = xs[i] as number;
     if (v < min) min = v;
     if (v > max) max = v;
   }
@@ -440,9 +437,9 @@ function decLet(xs: Float64Array, ys: Float64Array): number {
   let lastY = ys[0] as number;
   let runs = 0;
   for (let i = 1; i < xs.length; i++) {
-    let x = xs[i] as number;
-    let y = ys[i] as number;
-    let c = Math.floor(x);
+    const x = xs[i] as number;
+    const y = ys[i] as number;
+    const c = Math.floor(x);
     if (c !== col) {
       runs++;
       col = c;
@@ -469,6 +466,7 @@ bench("B manual NaN scan x dn pts", () => {
   const nn = pts.length / 2;
   for (let i = 0; i < nn; i++) {
     const y = pts[2 * i + 1] as number;
+    // biome-ignore lint/suspicious/noSelfCompare: intentional NaN check
     if (y === y) {
       if (!started) {
         runs++;
