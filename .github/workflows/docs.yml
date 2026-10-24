@@ -23,7 +23,8 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm -r build # libs first, then web/dist via astro
+      - run: pnpm build # root lib -> dist/ (pnpm -r skips the workspace root)
+      - run: pnpm -r build # react, solid, then web/dist via astro
       - run: pnpm run docs:api # starlight docs -> site/dist (base /ResolvCharts/Docs)
       - name: Assemble site
         run: |
