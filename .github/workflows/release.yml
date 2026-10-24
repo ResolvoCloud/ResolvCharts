@@ -21,5 +21,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm run build
       - run: pnpm run typecheck && pnpm test && pnpm run lint
+      - run: pnpm -r --filter resolvcharts-react --filter resolvcharts-solid run build
       # npm Trusted Publishing: OIDC auth via id-token, no NPM_TOKEN needed
-      - run: pnpm publish --provenance --access public --no-git-checks
+      - run: pnpm -r publish --provenance --access public --no-git-checks
