@@ -1,0 +1,194 @@
+---
+import DemoChart from "../components/DemoChart";
+import HeroStream from "../components/HeroStream";
+import Base from "../layouts/Base.astro";
+import { candlesRealistic, lineRealistic } from "../lib/samples";
+import { makeScatter } from "../lib/theme";
+
+const base = import.meta.env.BASE_URL;
+const lineData = lineRealistic(365);
+// dual ridge lines — gaussian peaks read as mountain silhouettes
+const ridge = (n: number, base: number, peaks: [number, number, number][]) =>
+  Array.from(
+    { length: n },
+    (_, i) =>
+      base +
+      peaks.reduce(
+        (s, [h, c, w]) => s + h * Math.exp(-(((i - c) / w) ** 2)),
+        0,
+      ),
+  );
+const areaData = {
+  x: Array.from({ length: 260 }, (_, i) => i),
+  series: [
+    {
+      label: "ridge·a",
+      y: ridge(260, 30, [
+        [34, 55, 42],
+        [22, 150, 60],
+        [38, 225, 38],
+      ]),
+    },
+    {
+      label: "ridge·b",
+      y: ridge(260, 18, [
+        [26, 25, 30],
+        [36, 95, 48],
+        [20, 175, 42],
+        [28, 240, 34],
+      ]),
+    },
+  ],
+};
+const candleData = candlesRealistic(140);
+const scatterData = makeScatter(800);
+const barData = {
+  categories: ["Q1", "Q2", "Q3", "Q4"],
+  series: [
+    { label: "2025", values: [42, 55, 48, 71] },
+    { label: "2026", values: [51, 63, 58, 84] },
+  ],
+};
+const waterfallData = {
+  categories: ["revenue", "cogs", "gross", "opex", "net"],
+  values: [500, -180, 320, -140, 135],
+  totals: [2, 4],
+};
+const donutData = {
+  slices: [
+    { label: "canvas", value: 34 },
+    { label: "webgpu", value: 48 },
+    { label: "idle", value: 18 },
+  ],
+};
+const radarData = {
+  categories: ["speed", "size", "types", "stream", "zoom", "deps"],
+  series: [
+    { label: "resolvcharts", values: [10, 9, 10, 10, 9, 10] },
+    { label: "typical lib", values: [4, 5, 8, 3, 6, 2] },
+  ],
+};
+---
+
+<Base title="resolv/charts — fast, zero-dependency charts" active="overview">
+  <div class="wrap">
+    <section class="hero">
+      <div class="eyebrow rise">ResolvCharts</div>
+      <h1 class="rise d1">Fast charts. Zero dependencies.<br />31.8 kb gzipped.</h1>
+      <p class="lede rise d2">
+        One <code>createChart()</code> call, fifteen chart types, Canvas2D with
+        automatic WebGPU past 50k points. The chart below is live — 100,000
+        points streaming at your display's refresh rate.
+      </p>
+      <div class="hero-ctas rise d3">
+        <a class="btn primary" href={base + "/benchmarks"}>Run the benchmarks</a>
+        <a class="btn" href={base + "/charts"}>Browse chart types</a>
+      </div>
+      <div class="hero-meta rise d4">
+        <span><b>npm i resolvcharts</b></span>
+        <span>typescript</span>
+        <span>apache-2.0</span>
+      </div>
+    </section>
+
+    <HeroStream client:only="solid-js" />
+
+    <section class="block" style="padding-top:32px">
+      <div class="stats rise">
+        <div class="stat"><div class="v">0.017<em>ms</em></div><div class="k">warm render · 1M pts</div></div>
+        <div class="stat"><div class="v">~4<em>ms</em></div><div class="k">cold render · 1M pts</div></div>
+        <div class="stat"><div class="v">120<em>fps</em></div><div class="k">50k rolling stream</div></div>
+        <div class="stat"><div class="v">31.8<em>kb</em></div><div class="k">gzipped · 0 deps</div></div>
+        <div class="stat"><div class="v">15</div><div class="k">chart types</div></div>
+        <div class="stat"><div class="v">~490<em>×</em></div><div class="k">vs best competitor @100k</div></div>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="sec-head">
+        <div class="eyebrow">vs the field</div>
+        <h2>Full refresh, 1M points × 2 series</h2>
+        <p class="lede">Average milliseconds on the JS thread, same machine and data. <a href={base + "/benchmarks"}>Full tables and live rerun →</a></p>
+      </div>
+      <div class="panel">
+        <div class="panel-body">
+          <DemoChart
+            client:only="solid-js"
+            type="bar"
+            yScale="log"
+            legend={{ position: "top" }}
+            height={300}
+            data={{
+              categories: ["resolvcharts", "chart.js +dec", "hc +boost", "apexcharts", "chart.js", "highcharts"],
+              series: [
+                { label: "resolvcharts", values: [0.013, null, null, null, null, null] },
+                { label: "others", values: [null, 126.6, 255.9, 424.1, 1409.6, 3322.8] },
+              ],
+            }}
+          />
+        </div>
+      </div>
+      <p class="micro" style="margin-top:12px">rendered by resolvcharts — log y axis keeps 0.013 ms visible next to 3322 ms · methodology on the benchmarks page</p>
+    </section>
+
+    <section class="block">
+      <div class="sec-head">
+        <div class="eyebrow">chart types</div>
+        <h2>One API, fifteen shapes</h2>
+      </div>
+      <div class="specimens">
+        <div class="specimen">
+          <div class="specimen-head"><span class="idx">01</span><h3>line</h3><span class="use">dense trends</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="line" curve="smooth" data={lineData} legend={{ position: "top" }} /></div>
+        </div>
+        <div class="specimen">
+          <div class="specimen-head"><span class="idx">02</span><h3>candle</h3><span class="use">ohlc + volume</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="candle" data={candleData} tooltip={false} /></div>
+        </div>
+        <div class="specimen">
+          <div class="specimen-head"><span class="idx">03</span><h3>area</h3><span class="use">line + fill</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="area" curve="smooth" data={areaData} fmt="si" /></div>
+        </div>
+        <div class="specimen">
+          <div class="specimen-head"><span class="idx">04</span><h3>scatter</h3><span class="use">point clouds</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="scatter" data={scatterData} /></div>
+        </div>
+        <div class="specimen">
+          <div class="specimen-head"><span class="idx">05</span><h3>bar</h3><span class="use">categorical</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="bar" data={barData} legend={{ position: "top" }} /></div>
+        </div>
+        <div class="specimen">
+          <div class="specimen-head"><span class="idx">06</span><h3>donut</h3><span class="use">share of total</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="donut" data={donutData} legend={{ position: "right" }} /></div>
+        </div>
+        <div class="specimen">
+          <div class="specimen-head"><span class="idx">07</span><h3>radar</h3><span class="use">multi-axis</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="radar" data={radarData} legend={{ position: "top" }} /></div>
+        </div>
+        <div class="specimen">
+          <div class="specimen-head"><span class="idx">08</span><h3>waterfall</h3><span class="use">P&amp;L bridge</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="waterfall" data={waterfallData} /></div>
+        </div>
+      </div>
+      <div style="height:24px"></div>
+      <div class="typeline">
+        {["line","area","baseline","sparkline","scatter","bubble","rangearea","bar","combo","radar","funnel","donut","pie","candle","waterfall"].map((t) => <a href={`${base}/charts#${t}`}>{t}</a>)}
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="sec-head">
+        <div class="eyebrow">why it's fast</div>
+        <h2>Pixels, not points</h2>
+      </div>
+      <div class="notes">
+        <div class="note"><b>Whole-frame memo</b>An unchanged view returns before clearRect — a repeat render is a key compare, ~0.01 ms.</div>
+        <div class="note"><b>M4 decimation</b>At most ~4 points per pixel column, peaks preserved — cold-render cost is bounded by plot width.</div>
+        <div class="note"><b>WebGPU when it counts</b><code>renderer: "auto"</code> engages the GPU past 50k points — instanced draws, ring-buffer uploads.</div>
+        <div class="note"><b>Zero-alloc streaming</b><code>append()</code> shifts typed arrays in place — ~0.05 ms per call, 120 fps sustained.</div>
+      </div>
+      <div style="height:28px"></div>
+      <a class="btn" href={base + "/benchmarks"}>See the numbers →</a>
+    </section>
+  </div>
+</Base>

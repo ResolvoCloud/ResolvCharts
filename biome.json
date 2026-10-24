@@ -11,6 +11,7 @@
       "!**/.astro",
       "!*.png",
       "!**/vendor",
+      "!**/*.astro",
       "!site/public/resolvcharts.global.min.js"
     ]
   },

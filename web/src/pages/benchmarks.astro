@@ -1,0 +1,130 @@
+---
+import RenderBench from "../components/RenderBench";
+import StreamBench from "../components/StreamBench";
+import Base from "../layouts/Base.astro";
+---
+
+<Base title="benchmarks — resolv/charts" active="benchmarks">
+  <div class="wrap">
+    <section class="hero" style="padding-bottom:16px">
+      <div class="eyebrow rise">Benchmarks · 24 Oct 2026 · M5 Pro · Chromium 152</div>
+      <h1 class="rise d1">Run it yourself.</h1>
+      <p class="lede rise d2">
+        The same harness behind <code>BENCHMARK_COMPARISON.md</code>, live in
+        your browser — followed by the recorded tables.
+      </p>
+    </section>
+
+    <section class="block">
+      <div class="sec-head">
+        <h2>Render cost — warm vs cold</h2>
+        <p class="lede">
+          <b>Warm</b> re-renders an unchanged frame — the whole-frame memo
+          early-returns. <b>Cold</b> rewrites the data first, so each timed
+          render pays the full path.
+        </p>
+      </div>
+      <RenderBench client:only="solid-js" />
+      <p class="micro" style="margin-top:10px">
+        tip: scatter @1M on canvas ~140 ms vs webgpu ~0.2 ms — instanced quads vs arc-per-point
+      </p>
+    </section>
+
+    <section class="block">
+      <div class="sec-head">
+        <h2>Streaming — 50k rolling window</h2>
+        <p class="lede">
+          One <code>append()</code> per animation frame for four seconds. Ours
+          shifts a ring buffer; competitors re-render the whole window per point.
+        </p>
+      </div>
+      <StreamBench client:only="solid-js" />
+    </section>
+
+    <section class="block">
+      <div class="sec-head">
+        <h2>Recorded — static render, avg ms</h2>
+        <p class="lede">Two series, 900×240 px, identical dense signal. Best per row in green.</p>
+      </div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr>
+              <th>points ×2 series</th>
+              <th class="n">resolv canvas</th>
+              <th class="n">resolv webgpu</th>
+              <th class="n">chart.js</th>
+              <th class="n">chart.js +dec</th>
+              <th class="n">apexcharts</th>
+              <th class="n">highcharts</th>
+              <th class="n">hc +boost</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>10k</td><td class="n best">0.02</td><td class="n dim">—</td><td class="n">10.6</td><td class="n dim">—</td><td class="n">3.6</td><td class="n">30.7</td><td class="n dim">—</td></tr>
+            <tr><td>100k</td><td class="n">0.027</td><td class="n best">0.017</td><td class="n">140.8</td><td class="n">13.2</td><td class="n">37.6</td><td class="n">291.8</td><td class="n">28.1</td></tr>
+            <tr><td>1M</td><td class="n">0.015</td><td class="n best">0.013</td><td class="n bad">1409.6</td><td class="n">126.6</td><td class="n">424.1</td><td class="n bad">3322.8</td><td class="n">255.9</td></tr>
+            <tr><td>5M</td><td class="n">0.023</td><td class="n best">0.010</td><td class="n dim">—</td><td class="n dim">—</td><td class="n dim">—</td><td class="n dim">—</td><td class="n dim">—</td></tr>
+          </tbody>
+        </table>
+        <div class="tbl-caption">
+          ours = memoized repeat render; cold path @1M is ~4 ms canvas / ~0.25–0.4 ms webgpu.
+        </div>
+      </div>
+
+      <div style="height:20px"></div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>streaming · append/rAF</th><th class="n">achieved fps</th><th class="n">per-call js</th><th class="n">per-call vs ours</th></tr>
+          </thead>
+          <tbody>
+            <tr class="us"><td>resolvcharts (canvas / webgpu)</td><td class="n">120.4</td><td class="n">0.051–0.056 ms</td><td class="n dim">—</td></tr>
+            <tr><td>apexcharts</td><td class="n">17.5</td><td class="n">56.7 ms</td><td class="n">~1010× slower</td></tr>
+            <tr><td>chart.js</td><td class="n">13.6</td><td class="n">72.2 ms</td><td class="n">~1290× slower</td></tr>
+            <tr><td>highcharts</td><td class="n">12.8</td><td class="n">77.0 ms</td><td class="n">~1380× slower</td></tr>
+          </tbody>
+        </table>
+        <div class="tbl-caption">120 fps = display cap. competitors spend 57–78 ms re-rendering the window per point.</div>
+      </div>
+
+      <div style="height:20px"></div>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead>
+            <tr><th>more measurements</th><th class="n">resolvcharts</th><th class="n">best competitor</th><th class="n">gap</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>first render · 1M</td><td class="n best">26.2 ms</td><td class="n">230 ms (hc+boost)</td><td class="n">8.8×</td></tr>
+            <tr><td>scatter 100k · repeat</td><td class="n best">0.015 ms</td><td class="n">37.1 ms (chart.js)</td><td class="n">~2500×</td></tr>
+            <tr><td>bundle · min+gzip</td><td class="n best">31.8 kb</td><td class="n">70.7 kb (chart.js)</td><td class="n">2.2–8.5× smaller</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="sec-head">
+        <h2>Methodology</h2>
+      </div>
+      <div class="notes">
+        <div class="note"><b>Submit vs update</b>Ours times <code>render(1)</code>. Theirs times the documented refresh on unchanged data — Chart.js <code>update('none')</code>, ApexCharts <code>updateSeries()</code>, Highcharts <code>setData+redraw</code>. They re-parse data we hold as typed arrays; that's the real cost a caller pays.</div>
+        <div class="note"><b>Fair controls</b>Animations, tooltips, legends, markers off. Chart.js "+dec" = built-in decimation; Highcharts "+boost" = WebGL module (+~50 kb).</div>
+        <div class="note"><b>Warm vs cold</b>Since v0.6 the whole frame is memoized — unchanged views early-return. Streaming and zoom still pay the full path every frame.</div>
+        <div class="note"><b>Caveat</b>Even discounting the update-path asymmetry, streaming fps and init times — which share no such asymmetry — show the same ordering.</div>
+      </div>
+      <div style="height:28px"></div>
+      <div class="panel">
+        <div class="panel-head"><span>reproduce from the repo</span></div>
+        <pre class="code"><span class="c"># in the ResolvCharts repo</span>
+pnpm build && python3 -m http.server 8931
+
+<span class="c"># ours — http://localhost:8931/bench/browser.html</span>
+<span class="k">await</span> window.<span class="f">runBench</span>()
+
+<span class="c"># theirs — http://localhost:8931/bench/competitors.html</span>
+<span class="k">await</span> window.<span class="f">run</span>(<span class="s">'chartjs'</span>, <span class="s">'render'</span>, <span class="s">'line'</span>, <span class="n">100000</span>)</pre>
+      </div>
+    </section>
+  </div>
+</Base>

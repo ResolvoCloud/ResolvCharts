@@ -1,0 +1,21 @@
+---
+import Base from "../layouts/Base.astro";
+
+const base = import.meta.env.BASE_URL;
+---
+
+<Base title="404 — resolv/charts">
+  <div class="wrap">
+    <section class="hero">
+      <div class="eyebrow rise">404</div>
+      <h1 class="rise d1">Nothing here.</h1>
+      <p class="lede rise d2">
+        The docs moved to <a href={`${base}/Docs/`}>/Docs</a> — old links redirect automatically.
+      </p>
+      <div class="hero-ctas rise d3">
+        <a class="btn primary" href={base}>Overview</a>
+        <a class="btn" href={`${base}/Docs/`}>Documentation</a>
+      </div>
+    </section>
+  </div>
+</Base>

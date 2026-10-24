@@ -1,4 +1,4 @@
-name: docs
+name: site
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write # push site/dist to the gh-pages branch
+  contents: write # push .site-out to the gh-pages branch
 
 concurrency:
   group: pages
@@ -23,8 +23,21 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run docs:api
+      - run: pnpm -r build # libs first, then web/dist via astro
+      - run: pnpm run docs:api # starlight docs -> site/dist (base /ResolvCharts/Docs)
+      - name: Assemble site
+        run: |
+          mkdir -p .site-out/Docs
+          cp -R web/dist/. .site-out/
+          cp -R site/dist/. .site-out/Docs/
+          # legacy redirects: old docs urls -> /Docs/...
+          cd site/dist
+          find guides api -name '*.html' | while read -r f; do
+            mkdir -p "$GITHUB_WORKSPACE/.site-out/$(dirname "$f")"
+            t="/ResolvCharts/Docs/${f%index.html}"
+            printf '<!doctype html><meta http-equiv="refresh" content="0; url=%s"><link rel="canonical" href="https://resolvocloud.github.io%s">' "$t" "$t" > "$GITHUB_WORKSPACE/.site-out/$f"
+          done
       - uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: site/dist
+          publish_dir: .site-out

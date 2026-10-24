@@ -94,8 +94,8 @@
     "changeset": "changeset",
     "prepack": "pnpm run build",
     "prepublishOnly": "pnpm run typecheck && pnpm run test && pnpm run check:package",
-    "docs:api": "pnpm run build && cp dist/resolvcharts.global.min.js site/public/resolvcharts.global.min.js && astro build --root site",
-    "docs:dev": "pnpm run build && cp dist/resolvcharts.global.min.js site/public/resolvcharts.global.min.js && astro dev --root site"
+    "docs:api": "pnpm run build && astro build --root site",
+    "docs:dev": "pnpm run build && astro dev --root site"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",

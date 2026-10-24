@@ -4,7 +4,7 @@ import starlightTypeDoc from "starlight-typedoc";
 
 export default defineConfig({
   site: "https://resolvocloud.github.io",
-  base: "/ResolvCharts",
+  base: "/ResolvCharts/Docs",
   integrations: [
     starlight({
       title: "ResolvCharts",

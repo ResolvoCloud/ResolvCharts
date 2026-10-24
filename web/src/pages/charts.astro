@@ -1,0 +1,283 @@
+---
+import DemoChart from "../components/DemoChart";
+import Base from "../layouts/Base.astro";
+import { candlesRealistic, lineRealistic } from "../lib/samples";
+import { makeScatter } from "../lib/theme";
+
+const x = (n: number) => Array.from({ length: n }, (_, i) => i);
+const wave = (n: number, f: number, a = 30, o = 50) =>
+  x(n).map((i) => o + a * Math.sin(i / f) + (i % 11));
+
+const lineData = lineRealistic(365);
+const areaData = {
+  x: x(200),
+  series: [{ label: "traffic", y: wave(200, 30, 25, 55) }],
+};
+const baselineData = {
+  x: x(160),
+  series: [
+    {
+      label: "delta",
+      y: x(160).map((i) => 20 * Math.sin(i / 14) + (i % 9) - 4),
+    },
+  ],
+};
+const sparkData = { x: x(90), series: [{ y: wave(90, 12, 14, 50) }] };
+const scatterData = makeScatter(800);
+const bubbleData = {
+  x: x(60),
+  series: [
+    {
+      label: "sites",
+      y: wave(60, 8, 20, 50),
+      r: x(60).map((i) => 3 + ((i * 13) % 14)),
+    },
+  ],
+};
+const rangeData = {
+  x: x(120),
+  series: [
+    {
+      label: "temp",
+      y: wave(120, 20, 12, 40),
+      y2: wave(120, 20, 12, 40).map((v) => v + 12 + (v % 5)),
+    },
+  ],
+};
+const barData = {
+  categories: ["Q1", "Q2", "Q3", "Q4"],
+  series: [
+    { label: "2025", values: [42, 55, 48, 71] },
+    { label: "2026", values: [51, 63, 58, 84] },
+  ],
+};
+const stackedData = {
+  categories: ["Jan", "Feb", "Mar", "Apr"],
+  series: [
+    { label: "inflow", values: [42, 55, 48, 61] },
+    { label: "adj", values: [8, -12, 6, -4] },
+  ],
+};
+const comboData = {
+  categories: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+  series: [
+    { label: "inflow", values: [42, 55, 48, 61, 58, 72], kind: "column" },
+    { label: "outflow", values: [30, 41, 37, 44, 40, 52], kind: "column" },
+    { label: "net", values: [12, 14, 11, 17, 18, 20], kind: "area" },
+  ],
+};
+const radarData = {
+  categories: ["speed", "power", "range", "cost", "weight"],
+  series: [
+    { label: "gen-1", values: [8, 6, 7, 9, 5] },
+    { label: "gen-2", values: [9, 8, 6, 7, 8] },
+  ],
+};
+const funnelData = {
+  categories: ["visit", "signup", "trial", "paid"],
+  series: [{ label: "users", values: [4200, 1800, 620, 240] }],
+};
+const donutData = {
+  slices: [
+    { label: "canvas", value: 34 },
+    { label: "webgpu", value: 48 },
+    { label: "idle", value: 18 },
+  ],
+};
+const candles = candlesRealistic(140);
+const waterfallData = {
+  categories: ["revenue", "cogs", "gross", "opex", "net"],
+  values: [500, -180, 320, -140, 135],
+  totals: [2, 4],
+};
+---
+
+<Base title="chart types — resolv/charts" active="charts">
+  <div class="wrap">
+    <section class="hero" style="padding-bottom:24px">
+      <div class="eyebrow rise">Walkthrough · one createChart() API</div>
+      <h1 class="rise d1">Fifteen shapes,<br /><span class="dim">one call.</span></h1>
+      <p class="lede rise d2">
+        Every chart below is live — rendered by
+        <code>resolvcharts-solid</code>'s <code>&lt;Chart&gt;</code> in this
+        page. The data shape is the only thing that changes between types.
+      </p>
+      <div class="typeline rise d3" style="margin-top:24px">
+        {["line","area","baseline","sparkline","scatter","bubble","rangearea","bar","combo","radar","funnel","donut","pie","candle","waterfall"].map((t) => <a href={`#${t}`}>{t}</a>)}
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="specimens">
+
+        <div class="specimen" id="line">
+          <div class="specimen-head"><span class="idx">01</span><h3>line</h3><span class="use">trends over x</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="line" curve="smooth" data={lineData} legend={{ position: "top" }} /></div>
+          <div class="specimen-code"><pre class="code"><span class="f">createChart</span>(el, {"{"}
+  type: <span class="s">"line"</span>, curve: <span class="s">"smooth"</span>, legend: {"{"} position: <span class="s">"top"</span> {"}"},
+  data: {"{"} x, series: [{"{"} label: <span class="s">"2026"</span>, y {"}"}, {"{"} label: <span class="s">"2025"</span>, y {"}"}] {"}"},
+{"}"})</pre></div>
+        </div>
+
+        <div class="specimen" id="area">
+          <div class="specimen-head"><span class="idx">02</span><h3>area</h3><span class="use">line + fill</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="area" curve="smooth" data={areaData} /></div>
+          <div class="specimen-code"><pre class="code"><span class="f">createChart</span>(el, {"{"}
+  type: <span class="s">"area"</span>, curve: <span class="s">"smooth"</span>,
+  data: {"{"} x, series: [{"{"} label: <span class="s">"traffic"</span>, y {"}"}] {"}"},
+{"}"})</pre></div>
+        </div>
+
+        <div class="specimen" id="baseline">
+          <div class="specimen-head"><span class="idx">03</span><h3>baseline</h3><span class="use">delta vs reference</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="baseline" baseline={0} data={baselineData} /></div>
+          <div class="specimen-code"><pre class="code"><span class="f">createChart</span>(el, {"{"}
+  type: <span class="s">"baseline"</span>, baseline: <span class="n">0</span>, <span class="c">// default: first value</span>
+  data: {"{"} x, series: [{"{"} label: <span class="s">"delta"</span>, y {"}"}] {"}"},
+{"}"}) <span class="c">// green above 0, red below</span></pre></div>
+        </div>
+
+        <div class="specimen" id="sparkline">
+          <div class="specimen-head"><span class="idx">04</span><h3>sparkline</h3><span class="use">inline, no axes</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="sparkline" curve="smooth" data={sparkData} height={180} /></div>
+          <div class="specimen-code"><pre class="code"><span class="f">createChart</span>(el, {"{"}
+  type: <span class="s">"sparkline"</span>, curve: <span class="s">"smooth"</span>, height: <span class="n">180</span>,
+  data: {"{"} x, series: [{"{"} y {"}"}] {"}"},
+{"}"})</pre></div>
+        </div>
+
+        <div class="specimen" id="scatter">
+          <div class="specimen-head"><span class="idx">05</span><h3>scatter</h3><span class="use">point clouds</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="scatter" data={scatterData} /></div>
+          <div class="specimen-code"><pre class="code"><span class="f">createChart</span>(el, {"{"}
+  type: <span class="s">"scatter"</span>,
+  data: {"{"} x, series: [{"{"} label: <span class="s">"α"</span>, y {"}"}, {"{"} label: <span class="s">"β"</span>, y {"}"}] {"}"},
+{"}"}) <span class="c">// 1M pts → webgpu instanced quads ~0.2 ms</span></pre></div>
+        </div>
+
+        <div class="specimen" id="bubble">
+          <div class="specimen-head"><span class="idx">06</span><h3>bubble</h3><span class="use">+ radius channel</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="bubble" data={bubbleData} /></div>
+          <div class="specimen-code"><pre class="code"><span class="f">createChart</span>(el, {"{"}
+  type: <span class="s">"bubble"</span>,
+  data: {"{"} x, series: [{"{"} label: <span class="s">"sites"</span>, y, r {"}"}] {"}"},
+{"}"}) <span class="c">// per-point r scales circle radius</span></pre></div>
+        </div>
+
+        <div class="specimen" id="rangearea">
+          <div class="specimen-head"><span class="idx">07</span><h3>rangearea</h3><span class="use">min–max band</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="rangearea" data={rangeData} /></div>
+          <div class="specimen-code"><pre class="code"><span class="f">createChart</span>(el, {"{"}
+  type: <span class="s">"rangearea"</span>,
+  data: {"{"} x, series: [{"{"} label: <span class="s">"temp"</span>, y, y2 {"}"}] {"}"},
+{"}"}) <span class="c">// band between y (lower) and y2 (upper)</span></pre></div>
+        </div>
+
+        <div class="specimen" id="bar">
+          <div class="specimen-head"><span class="idx">08</span><h3>bar</h3><span class="use">categorical · stacked</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="bar" data={barData} legend={{ position: "top" }} /></div>
+          <div class="specimen-code"><pre class="code"><span class="f">createChart</span>(el, {"{"}
+  type: <span class="s">"bar"</span>, legend: {"{"} position: <span class="s">"top"</span> {"}"}, <span class="c">// stacked: true also works</span>
+  data: {"{"} categories: [<span class="s">"Q1"</span>,…], series: [{"{"} label: <span class="s">"2025"</span>, values {"}"}, {"{"} label: <span class="s">"2026"</span>, values {"}"}] {"}"},
+{"}"})</pre></div>
+        </div>
+
+        <div class="specimen" id="combo">
+          <div class="specimen-head"><span class="idx">09</span><h3>combo</h3><span class="use">columns + overlay</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="combo" data={comboData} legend={{ position: "top" }} /></div>
+          <div class="specimen-code"><pre class="code"><span class="f">createChart</span>(el, {"{"}
+  type: <span class="s">"combo"</span>,
+  data: {"{"} categories, series: [
+    {"{"} label: <span class="s">"inflow"</span>, values, kind: <span class="s">"column"</span> {"}"},
+    {"{"} label: <span class="s">"net"</span>,    values, kind: <span class="s">"area"</span>   {"}"},
+  ] {"}"},
+{"}"})</pre></div>
+        </div>
+
+        <div class="specimen" id="radar">
+          <div class="specimen-head"><span class="idx">10</span><h3>radar</h3><span class="use">multi-axis polygon</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="radar" data={radarData} legend={{ position: "top" }} /></div>
+          <div class="specimen-code"><pre class="code"><span class="f">createChart</span>(el, {"{"}
+  type: <span class="s">"radar"</span>, legend: {"{"} position: <span class="s">"top"</span> {"}"},
+  data: {"{"} categories: [<span class="s">"speed"</span>, <span class="s">"power"</span>,…], series: [{"{"} label, values {"}"}] {"}"},
+{"}"}) <span class="c">// one axis per category</span></pre></div>
+        </div>
+
+        <div class="specimen" id="funnel">
+          <div class="specimen-head"><span class="idx">11</span><h3>funnel</h3><span class="use">stage drop-off</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="funnel" data={funnelData} fmt="si" /></div>
+          <div class="specimen-code"><pre class="code"><span class="f">createChart</span>(el, {"{"}
+  type: <span class="s">"funnel"</span>,
+  data: {"{"} categories: [<span class="s">"visit"</span>, <span class="s">"signup"</span>, <span class="s">"trial"</span>, <span class="s">"paid"</span>],
+         series: [{"{"} label: <span class="s">"users"</span>, values: [<span class="n">4200</span>, <span class="n">1800</span>, <span class="n">620</span>, <span class="n">240</span>] {"}"}] {"}"},
+{"}"})</pre></div>
+        </div>
+
+        <div class="specimen" id="donut">
+          <div class="specimen-head"><span class="idx">12</span><h3>donut</h3><span class="use">share of total</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="donut" data={donutData} legend={{ position: "right" }} /></div>
+          <div class="specimen-code"><pre class="code"><span class="f">createChart</span>(el, {"{"}
+  type: <span class="s">"donut"</span>, legend: {"{"} position: <span class="s">"right"</span> {"}"},
+  data: {"{"} slices: [{"{"} label: <span class="s">"webgpu"</span>, value: <span class="n">48</span> {"}"}, …] {"}"},
+{"}"}) <span class="c">// type:"pie" fills to the center</span></pre></div>
+        </div>
+
+        <div class="specimen" id="pie">
+          <div class="specimen-head"><span class="idx">13</span><h3>pie</h3><span class="use">no hole</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="pie" data={donutData} legend={{ position: "right" }} /></div>
+          <div class="specimen-code"><pre class="code"><span class="f">createChart</span>(el, {"{"}
+  type: <span class="s">"pie"</span>,
+  data: {"{"} slices: [{"{"} label: <span class="s">"a"</span>, value: <span class="n">40</span> {"}"}, {"{"} label: <span class="s">"b"</span>, value: <span class="n">60</span> {"}"}] {"}"},
+{"}"})</pre></div>
+        </div>
+
+        <div class="specimen" id="candle">
+          <div class="specimen-head"><span class="idx">14</span><h3>candle / ohlc</h3><span class="use">financial + volume</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="candle" data={candles} /></div>
+          <div class="specimen-code"><pre class="code"><span class="f">createChart</span>(el, {"{"}
+  type: <span class="s">"candle"</span>, <span class="c">// "ohlc" renders bar-style</span>
+  data: {"{"} candles: [{"{"} x, open, high, low, close, volume? {"}"}, …] {"}"},
+{"}"}) <span class="c">// dense series aggregate ~1 mark per pixel</span></pre></div>
+        </div>
+
+        <div class="specimen" id="waterfall">
+          <div class="specimen-head"><span class="idx">15</span><h3>waterfall</h3><span class="use">P&amp;L bridge</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="waterfall" data={waterfallData} /></div>
+          <div class="specimen-code"><pre class="code"><span class="f">createChart</span>(el, {"{"}
+  type: <span class="s">"waterfall"</span>,
+  data: {"{"} categories: [<span class="s">"revenue"</span>, <span class="s">"cogs"</span>, <span class="s">"gross"</span>,…],
+         values: [<span class="n">500</span>, <span class="n">-180</span>, <span class="n">320</span>,…], totals: [<span class="n">2</span>, <span class="n">4</span>] {"}"},
+{"}"}) <span class="c">// signed deltas; totals = absolute columns</span></pre></div>
+        </div>
+
+        <div class="specimen">
+          <div class="specimen-head"><span class="idx">+</span><h3>stacked bar</h3><span class="use">negatives below zero</span></div>
+          <div class="specimen-chart"><DemoChart client:only="solid-js" type="bar" stacked={true} data={stackedData} legend={{ position: "top" }} /></div>
+          <div class="specimen-code"><pre class="code"><span class="f">createChart</span>(el, {"{"}
+  type: <span class="s">"bar"</span>, stacked: <span class="k">true</span>,
+  data: {"{"} categories, series: [{"{"} label: <span class="s">"inflow"</span>, values {"}"}, {"{"} label: <span class="s">"adj"</span>, values {"}"}] {"}"},
+{"}"})</pre></div>
+        </div>
+
+      </div>
+    </section>
+
+    <section class="block">
+      <div class="sec-head">
+        <div>
+          <div class="eyebrow">Beyond static</div>
+          <h2>Stream, zoom, theme.</h2>
+        </div>
+        <div class="num">[05]</div>
+      </div>
+      <div class="notes">
+        <div class="note"><b>append(x, y)</b>Streaming with `window` + `flow` — the viewport tweens to the new domain as points slide in. See the hero chart on the overview page.</div>
+        <div class="note"><b>zoom: true</b>Wheel zoom, drag-select or drag-pan, double-click reset — view-domain renders hit the same memoized path.</div>
+        <div class="note"><b>xScale / yScale</b>"time" calendar ticks on epoch-ms, "log" with cached log_b arrays — transforms paid once at setData, not per render.</div>
+        <div class="note"><b>theme</b>"light", "dark", or a partial token object — bg, grid, series palette, tooltip chrome, fontFamily. This site passes one custom token set to every chart.</div>
+      </div>
+      <div style="height:32px"></div>
+      <a class="btn" href={import.meta.env.BASE_URL + "/benchmarks"}>now the benchmarks →</a>
+    </section>
+  </div>
+</Base>
