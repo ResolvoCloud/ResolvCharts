@@ -1,6 +1,6 @@
 {
   "name": "resolvcharts-react",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "React wrapper for resolvcharts",
   "author": "Resolvo Cloud",
   "repository": {
@@ -37,7 +37,8 @@
     "resolvcharts": "workspace:^"
   },
   "peerDependencies": {
-    "react": "^18.0.0 || ^19.0.0"
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
@@ -47,5 +48,40 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "keywords": [
+    "react",
+    "react-charts",
+    "react-chart",
+    "reactjs",
+    "chart",
+    "charts",
+    "graph",
+    "graphs",
+    "canvas",
+    "visualization",
+    "dataviz",
+    "line-chart",
+    "bar-chart",
+    "pie-chart",
+    "donut-chart",
+    "area-chart",
+    "scatter",
+    "bubble",
+    "radar",
+    "funnel",
+    "candlestick",
+    "ohlc",
+    "waterfall",
+    "sparkline",
+    "time-series",
+    "realtime",
+    "streaming",
+    "zoom",
+    "pan",
+    "lightweight",
+    "zero-dependency",
+    "typescript",
+    "resolvcharts"
+  ]
 }

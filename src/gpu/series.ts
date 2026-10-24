@@ -385,6 +385,10 @@ interface Slot {
   decCols: number;
   bg: GPUBindGroup | null;
   decStamp: number;
+  /** key of the data/view/uniform state the `dec` buffer was built for */
+  decKey: string | null;
+  /** bumped on every data mutation (upload/append/grow) */
+  upStamp: number;
 }
 
 interface View {
@@ -431,6 +435,8 @@ export class GpuSeries {
   private t = 1;
   private flow = 0;
   private tailScratch = new Float32Array(4);
+  /** CPU staging for per-op uniforms — flushed to `ubuf` once per end() */
+  private uStage = new Float32Array(0);
   /** last measured GPU execution time in ms (when timing enabled) */
   gpuMs: number | null = null;
   private querySet: GPUQuerySet | null = null;
@@ -751,6 +757,8 @@ export class GpuSeries {
         scratchN: 0,
         dec: null,
         decCols: 0,
+        decKey: null,
+        upStamp: 0,
         bg: null,
         decStamp: -1,
       };
@@ -775,6 +783,7 @@ export class GpuSeries {
     }
     this.device.queue.writeBuffer(slot.xy, 0, encXY, 0, n * 2);
     this.device.queue.writeBuffer(slot.prev, 0, encPrev, 0, n);
+    slot.upStamp++;
   }
 
   /**
@@ -837,6 +846,7 @@ export class GpuSeries {
         q.writeBuffer(s.prev, pOld * 4, t, 0, 1);
         s.encPrev[pOld] = ep;
       }
+      s.upStamp++;
     }
     return true;
   }
@@ -869,6 +879,7 @@ export class GpuSeries {
     s.cap = cap;
     s.start = 0;
     s.bg = null;
+    s.upStamp++;
   }
 
   // --------------------------------------------------------------- frame --
@@ -919,7 +930,13 @@ export class GpuSeries {
     u.set([this.t, this.flow, inv, 0], 16);
     u.set([s.start, s.cap, s.n, 0], 20);
     u.set([dec[0], dec[1], 0, 0], 24);
-    this.device.queue.writeBuffer(this.ubuf, off, u);
+    // staged — one queue.writeBuffer for all uniforms in end()
+    if (this.uStage.length < this.uOff / 4 + UVEC * 4) {
+      const bigger = new Float32Array(this.uOff / 4 + UVEC * 4);
+      bigger.set(this.uStage);
+      this.uStage = bigger;
+    }
+    this.uStage.set(u, off / 4);
     return off;
   }
 
@@ -929,6 +946,7 @@ export class GpuSeries {
 
   private ensureDec(s: Slot): void {
     if (s.dec && s.decCols >= this.cols) return;
+    s.decKey = null;
     s.dec?.destroy();
     const cols = Math.max(this.cols, Math.ceil(this.canvas.width / this.dpr));
     s.dec = this.device.createBuffer({
@@ -946,6 +964,10 @@ export class GpuSeries {
   ): void {
     if (s.decStamp === this.stamp) return;
     s.decStamp = this.stamp;
+    // decimated output is still valid while data/map/t/flow are unchanged
+    const key = `${s.upStamp}|${this.cols}|${map.join(",")}|${this.t}|${this.flow}|${gapFillY}`;
+    if (s.dec && s.bg && s.decKey === key) return;
+    s.decKey = key;
     this.ensureDec(s);
     if (!s.bg) {
       s.bg = this.device.createBindGroup({
@@ -1100,6 +1122,9 @@ export class GpuSeries {
   end(): void {
     if (this.unavailable || (!this.draws.length && !this.cmps.length)) return;
     try {
+      if (this.uOff > 0) {
+        this.device.queue.writeBuffer(this.ubuf, 0, this.uStage, 0, this.uOff / 4);
+      }
       const encoder = this.device.createCommandEncoder();
       if (this.cmps.length) {
         const cp = encoder.beginComputePass();

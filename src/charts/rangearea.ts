@@ -5,6 +5,12 @@ import { eachRun, isXY, segView, traceCurve } from "./registry";
 
 /** pooled scratch for the reversed lower edge — consumed within the call */
 let revScratch = new Float64Array(0);
+/**
+ * Copy of the upper edge — `seriesPoints` results are views into pooled
+ * scratch buffers that the next call overwrites, so `hi` must be materialized
+ * before `lo` is computed.
+ */
+let hiScratch = new Float32Array(0);
 
 /**
  * Range-area chart: a filled band between each series' `y` (lower edge) and
@@ -26,7 +32,7 @@ export function renderRangeArea(r: RenderContext): void {
     if (r.hidden.has(si)) continue;
     const s = d.series[si];
     if (!s?.y2) continue;
-    const hi = seriesPoints(r, {
+    const hiRaw = seriesPoints(r, {
       y: s.y2,
       prevY: s.prevY2,
       hasGaps: s.hasGaps,
@@ -34,6 +40,11 @@ export function renderRangeArea(r: RenderContext): void {
       yLog: s.y2Log ?? undefined,
       prevYLog: s.prevY2Log ?? null,
     });
+    if (hiScratch.length < hiRaw.length) {
+      hiScratch = new Float32Array(hiRaw.length);
+    }
+    const hi = hiScratch.subarray(0, hiRaw.length);
+    hi.set(hiRaw);
     const lo = seriesPoints(r, s);
     const n = Math.min(hi.length, lo.length) / 2;
     if (n === 0) continue;

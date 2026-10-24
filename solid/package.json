@@ -1,6 +1,6 @@
 {
   "name": "resolvcharts-solid",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "SolidJS wrapper for resolvcharts",
   "author": "Resolvo Cloud",
   "repository": {
@@ -46,5 +46,40 @@
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "keywords": [
+    "solid",
+    "solidjs",
+    "solid-js",
+    "solid-charts",
+    "chart",
+    "charts",
+    "graph",
+    "graphs",
+    "canvas",
+    "visualization",
+    "dataviz",
+    "line-chart",
+    "bar-chart",
+    "pie-chart",
+    "donut-chart",
+    "area-chart",
+    "scatter",
+    "bubble",
+    "radar",
+    "funnel",
+    "candlestick",
+    "ohlc",
+    "waterfall",
+    "sparkline",
+    "time-series",
+    "realtime",
+    "streaming",
+    "zoom",
+    "pan",
+    "lightweight",
+    "zero-dependency",
+    "typescript",
+    "resolvcharts"
+  ]
 }

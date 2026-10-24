@@ -196,6 +196,11 @@ export class Chart {
   private dataRev = 0;
   /** memoized {@link computeDomains} — invalidated on data/hidden changes */
   private domCache: { x: [number, number]; y: [number, number] } | null = null;
+  /** key of the last rasterized static layer (grid/ticks/labels) */
+  private gridKey: string | null = null;
+  /** memoized {@link makeScales} — keyed on view domain + plot + volBand */
+  private scKey: string | null = null;
+  private scCache: { xScale: Scale; yScale: Scale } | null = null;
   private lastAppendAt = 0;
   private estInterval = 400;
   private legend: Legend | null = null;
@@ -812,7 +817,7 @@ export class Chart {
         const shift = (-dPx * (t1 - t0)) / Math.max(1, spanPx);
         this.setOverride(
           axis,
-          [t0 + shift, t1 + shift].map(f.i) as [number, number],
+          [f.i(t0 + shift), f.i(t1 + shift)],
           lim[axis],
           f,
         );
@@ -1257,12 +1262,14 @@ export class Chart {
   private makeScales(): { xScale: Scale; yScale: Scale } {
     const plot = this.backend.plot;
     const dom = this.view;
-    const base = this.options.logBase ?? 10;
     const volBand =
       this.data.kind === "ohlc" && this.data.volume ? plot.h * 0.18 : 0;
+    const key = `${dom.x[0]}|${dom.x[1]}|${dom.y[0]}|${dom.y[1]}|${plot.x}|${plot.y}|${plot.w}|${plot.h}|${volBand}`;
+    if (this.scKey === key && this.scCache) return this.scCache;
+    const base = this.options.logBase ?? 10;
     const x0 =
       this.options.xScale === "log" ? Math.max(dom.x[0], 1e-300) : dom.x[0];
-    return {
+    const out = {
       xScale:
         this.options.xScale === "log"
           ? logScale(x0, dom.x[1], plot.x, plot.x + plot.w, base)
@@ -1278,6 +1285,9 @@ export class Chart {
             )
           : linearScale(dom.y[0], dom.y[1], plot.y + plot.h - volBand, plot.y),
     };
+    this.scKey = key;
+    this.scCache = out;
+    return out;
   }
 
   private renderContext(t: number, scales = this.makeScales()): RenderContext {
@@ -1298,9 +1308,27 @@ export class Chart {
 
   private drawStatic(scales = this.makeScales()): void {
     if (!this.mod.axes) return;
-    const ctx = this.backend.grid();
     const plot = this.backend.plot;
     const { xScale, yScale } = scales;
+    // grid bitmap is reusable while data/view/layout are unchanged —
+    // the offscreen redraw + text pass then costs just one blit
+    const key = [
+      this.dataRev,
+      this.backend.gridRev,
+      xScale.domain[0],
+      xScale.domain[1],
+      yScale.domain[0],
+      yScale.domain[1],
+      plot.x,
+      plot.y,
+      plot.w,
+      plot.h,
+    ].join("|");
+    if (this.gridKey === key) {
+      this.backend.blitGrid();
+      return;
+    }
+    const ctx = this.backend.grid();
     const fmtY = this.options.labels?.y ?? formatSI;
     ctx.font = `11px ${this.theme.fontFamily}`;
     ctx.fillStyle = this.theme.textMuted;
@@ -1384,9 +1412,23 @@ export class Chart {
       }
     }
     this.backend.blitGrid();
+    this.gridKey = key;
   }
 
+  /** key of the last fully rasterized frame — repeat renders are skipped */
+  private frameKey: string | null = null;
+
   private render(t: number): void {
+    // whole-frame memo: identical (data, view, layout, hover, gpu state)
+    // produces identical pixels — the previous frame is already on screen
+    const dom = this.view;
+    const plot = this.backend.plot;
+    let hid = "";
+    for (const h of this.hidden) hid += h + ",";
+    const gpu = this.gpu;
+    const key = `${t}|${this.dataRev}|${this.backend.gridRev}|${dom.x[0]}|${dom.x[1]}|${dom.y[0]}|${dom.y[1]}|${plot.x}|${plot.y}|${plot.w}|${plot.h}|${hid}|${JSON.stringify(this.hover)}|${gpu ? (gpu.unavailable ? 2 : 1) : 0}`;
+    if (this.frameKey === key) return;
+    this.frameKey = key;
     this.backend.begin();
     const scales = this.makeScales();
     this.drawStatic(scales);

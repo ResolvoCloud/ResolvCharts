@@ -1,5 +1,11 @@
-import type { CSSProperties, ReactElement, Ref } from "react";
-import { useEffect, useRef } from "react";
+import type {
+  CSSProperties,
+  ForwardedRef,
+  ForwardRefExoticComponent,
+  ReactElement,
+  RefAttributes,
+} from "react";
+import { forwardRef, useEffect, useRef } from "react";
 import {
   type ChartData,
   type Chart as ChartInstance,
@@ -24,26 +30,27 @@ export interface ChartProps extends Omit<ChartOptions, "data" | "onHover"> {
   onHover?: ChartOptions["onHover"];
   /** Called with the chart instance once mounted (for `append()`, etc.). */
   onReady?: (chart: ChartInstance) => void;
-  /** Ref to the underlying chart instance. */
-  ref?: Ref<ChartInstance>;
   className?: string;
   style?: CSSProperties;
 }
 
+const setRef = (ref: ForwardedRef<ChartInstance>, v: ChartInstance | null) => {
+  if (typeof ref === "function") ref(v);
+  else if (ref) ref.current = v;
+};
+
 /**
- * `<Chart type="line" data={...} />` — props map 1:1 to `ChartOptions`.
- * `data` updates animate via `setData()`; `type` changes rebuild the chart.
- * Other options are captured at mount — pass a React `key` to force a rebuild.
+ * `<Chart type="line" data={...} ref={chartRef} />` — props map 1:1 to
+ * `ChartOptions`. `data` updates animate via `setData()`; `type` changes
+ * rebuild the chart. Other options are captured at mount — pass a React
+ * `key` to force a rebuild. `ref` yields the chart instance (React 18/19).
  */
-export function Chart({
-  data,
-  onHover,
-  onReady,
+export const Chart: ForwardRefExoticComponent<
+  ChartProps & RefAttributes<ChartInstance>
+> = forwardRef<ChartInstance, ChartProps>(function Chart(
+  { data, onHover, onReady, className, style, ...options },
   ref,
-  className,
-  style,
-  ...options
-}: ChartProps): ReactElement {
+): ReactElement {
   const elRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<ChartInstance | null>(null);
   const dataRef = useRef(data);
@@ -66,16 +73,21 @@ export function Chart({
       onHover: (info) => onHoverRef.current?.(info),
     });
     chartRef.current = chart;
-    if (typeof ref === "function") ref(chart);
-    else if (ref) ref.current = chart;
     onReadyRef.current?.(chart);
     return () => {
       chart.destroy();
       chartRef.current = null;
-      if (typeof ref === "function") ref(null);
-      else if (ref) ref.current = null;
     };
-  }, [type, ref]);
+  }, [type]);
+
+  // keeps the forwarded ref pointed at the live chart — covers mount,
+  // `type` rebuilds, and mid-life ref swaps (ref identity is in the deps
+  // but never rebuilds the chart itself)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `type` re-syncs the ref after a chart rebuild
+  useEffect(() => {
+    setRef(ref, chartRef.current);
+    return () => setRef(ref, null);
+  }, [ref, type]);
 
   const mounted = useRef(false);
   useEffect(() => {
@@ -87,4 +99,6 @@ export function Chart({
   }, [data]);
 
   return <div ref={elRef} className={className} style={style} />;
-}
+});
+
+Chart.displayName = "Chart";

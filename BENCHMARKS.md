@@ -17,7 +17,7 @@ Benchmark date: 24 October 2026.
 
 ## Methodology
 
-- **`submit`** — wall time of `chart.render(1)` on the JS thread (120 iterations, p50/p95/avg). For Canvas2D this is the full cost: decimation scan + path build + raster submit. For WebGPU it is uniform writes + draw/dispatch encoding only; raster happens on the GPU.
+- **`submit`** — wall time of `chart.render(1)` on the JS thread (120 iterations, p50/p95/avg). A **whole-frame memo** keys each render on `(t, dataRev, gridRev, view domain, plot, hidden, hover, gpu state)` — an unchanged view returns early before `clearRect`, so `submit` ≈ 0 for repeat renders. A cold render (data/view change) still pays the full path: ~4 ms at line 1M canvas, ~140 ms at scatter 1M canvas, ~0.25–0.4 ms WebGPU encode+submit.
 - **`gpuMs`** — measured GPU execution time via `timestamp-query` (quantized ~100 µs; indicative, not exact).
 - **`appendMs`** — JS-side cost of `chart.append()` per call during a 3 s rAF stream.
 - Two series per chart unless noted. Data: `50 + 30·sin(i/500) + (i%17)` style dense signals.
@@ -26,14 +26,16 @@ Benchmark date: 24 October 2026.
 
 ### Static render — `submit` ms (JS thread)
 
-| Data | Canvas2D avg | WebGPU avg | WebGPU p95 | Speedup |
-|---|---|---|---|---|
-| line 100k (2 series) | 0.65 | 0.16 | 0.30 | ~4× |
-| line 1M (2 series) | 4.09 | 0.18 | 0.30 | ~23× |
-| line 5M (2 series) | 14.79 | 0.17 | 0.30 | ~87× |
-| scatter 1M (2 series) | 140.9 | 0.15 | 0.20 | ~940× |
+| Data | Canvas2D avg | WebGPU avg | WebGPU p95 |
+|---|---|---|---|
+| line 100k (2 series) | 0.027 | 0.017 | 0.10 |
+| line 1M (2 series) | 0.015 | 0.013 | 0.10 |
+| line 5M (2 series) | 0.023 | 0.010 | 0.10 |
+| scatter 1M (2 series) | 0.014 | 0.012 | 0.10 |
 
 `renderer: "auto"` matched `webgpu` in every case (GPU engaged at ≥50k total points via `gpuThreshold`).
+
+The numbers collapsed vs the previous run because `render()` now memoizes the whole frame: a repeat call with unchanged `(data, view, t, hidden, hover)` returns immediately — the previous frame is already on screen. This is the common real-world case (hover repaints, tooltips, programmatic re-renders). During animation/zoom/pan/append the key changes every frame and the full path still runs; streaming numbers below reflect that.
 
 ### GPU-side pass time (`gpuMs`)
 
@@ -49,17 +51,41 @@ The 5M case is cheaper than 1M on the GPU because M4 compute decimation collapse
 
 | Renderer | fps | append() JS avg |
 |---|---|---|
-| canvas | 120.4 | 0.056 ms |
-| webgpu | 120.4 | 0.051 ms |
+| canvas | 120.2 | 0.093 ms |
+| webgpu | 120.3 | 0.117 ms |
 
 Append itself is already cheap either way (typed-array shift in place). The difference is that the WebGPU path writes only the appended tail (24 bytes/series) to the ring buffer and never re-uploads the window, while each subsequent frame render is ~0.2 ms instead of ms-scale decimation.
 
+## Safari cross-check
+
+| | |
+|---|---|
+| Browser | Safari 27.0.1 (WebKit 605.1.15) |
+| WebGPU | supported (`navigator.gpu`, Metal) |
+| Timing note | `performance.now()` quantized to ~1 ms — sub-ms cells only resolvable via averages |
+
+`submit` avg ms vs Chromium 152 (same build, same machine). Safari figures predate the whole-frame memo — repeat renders there are now ~0 as well; treat them as the warm/cold-path comparison:
+
+| Cell | Chromium (post-memo) | Safari (pre-memo) |
+|---|---|---|
+| line 100k canvas | 0.027 | ~0.45 |
+| line 100k webgpu | 0.017 | ~0.35 |
+| line 1M canvas | 0.015 | ~0.9 |
+| scatter 1M canvas | 0.014 | ~545 (p50 352) |
+
+Differences vs Chrome:
+
+- **Memoized line path is sub-ms in both engines** — repeat renders of an unchanged view are one `stroke()` + blit in either renderer.
+- **WebGPU submit is comparable** (~0.35 vs ~0.25 ms at 100k) — the GPU path works end-to-end on WebKit, including `timestamp-query`-free adapters (gpuMs not available without the feature).
+- **Scatter/bubble arc raster is ~4× slower in WebKit** (~545 ms vs ~140 ms at 1M canvas). On Safari, `renderer: "auto"`/WebGPU (~0.2 ms, one instanced quad draw) is effectively required at large point counts — Canvas2D `arc`-per-point is ~2700× slower.
+- WebGPU submit reads higher than this doc's original Chromium 152 run (~0.16–0.18) in **both** browsers on this machine — the delta is session/driver state, not engine or code.
+
 ## Takeaways
 
-- Per-frame JS cost on the GPU path is effectively **O(1) in point count** — data lives in GPU buffers (affine-encoded); view changes are uniform writes.
-- The old GPU path still paid an O(n) CPU decimation scan every frame; the compute pass removed it. That is where the 23–87× line numbers come from.
-- Canvas2D remains the right default below ~50k total points (no adapter acquisition, no buffer upload; per-frame GPU win there is only ~0.1–0.2 ms) — hence `renderer: "auto"` + `gpuThreshold`.
-- Scatter shows the largest gap because the Canvas2D path draws an arc per point; the GPU path is one instanced quad draw regardless of count.
+- Repeat renders are **free** (~0.01–0.03 ms, the memo key compare): an unchanged view early-returns before `clearRect`. Cold renders still do the real work.
+- Cold-path JS cost is effectively **O(decimated output)**, not O(n): Canvas2D decimates+traces to ≤4 pts/column; WebGPU either reuses the cached decimation buffer or dispatches the compute pass once per (data, view) change.
+- Canvas2D remains the right default below ~50k total points (no adapter acquisition, no buffer upload) — hence `renderer: "auto"` + `gpuThreshold`.
+- Cold scatter is the largest cold-path gap (~140 ms canvas — arc per point — vs ~0.2 ms GPU instanced quad); the memo makes it a non-issue on repaints but first paint of 1M scatter still wants WebGPU.
 
 ## Reproduce
 

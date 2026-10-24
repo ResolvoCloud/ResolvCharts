@@ -4,6 +4,9 @@ import type { Scale } from "./types";
  * Map data-space points to pixel space (with optional lerp between prev and
  * current y for animation) into interleaved [x, y] pairs. Non-finite y
  * propagates as NaN — path builders split segments there (data gaps).
+ *
+ * Returns a subarray view of a pooled buffer — consume it before calling
+ * mapSeriesPx again.
  */
 export function mapSeriesPx(
   xs: Float64Array,
@@ -26,7 +29,11 @@ export function mapSeriesPx(
   pre?: { x?: boolean | undefined; y?: boolean | undefined },
 ): Float32Array {
   const n = Math.min(xs.length, ys.length);
-  const out = new Float32Array(Math.max(1, n) * 2);
+  // pooled output — callers consume before the next map/decimate call
+  if (mapScratch.length < Math.max(1, n) * 2) {
+    mapScratch = new Float32Array(Math.max(1, n) * 2);
+  }
+  const out = mapScratch;
   const lx = logs?.x;
   const invLx = lx ? 1 / Math.log(lx) : 0;
   const ly = logs?.y;
@@ -92,6 +99,8 @@ export function mapSeriesPx(
 
 /** pooled output for decimateSeriesPx — callers consume before the next call */
 let decScratch = new Float32Array(0);
+/** pooled output for mapSeriesPx — callers consume before the next call */
+let mapScratch = new Float32Array(0);
 
 /**
  * Emit one M4 column: transform the raw-space first/min/max/last survivors
@@ -172,7 +181,7 @@ function emitCol(
  * separator between contiguous runs so path builders split segments.
  *
  * Returns a subarray view of a pooled buffer — consume it before calling
- * decimateSeriesPx/mapSeriesPx again.
+ * decimateSeriesPx again.
  */
 export function decimateSeriesPx(
   xs: Float64Array,
@@ -214,8 +223,10 @@ export function decimateSeriesPx(
   // separators (≤ one per gap) — slightly over-allocates, but the buffer is
   // pooled so the grow cost is paid once
   const maxPts = Math.min(n, 4 * (Math.ceil(pixelWidth) + 8)) + n + 1;
-  if (decScratch.length < maxPts * 2) {
-    decScratch = new Float32Array(Math.max(1, maxPts) * 2);
+  // +8 slack: a column emits up to 4 points as one block — the grouped
+  // capacity check must not starve when only a few slots remain
+  if (decScratch.length < maxPts * 2 + 8) {
+    decScratch = new Float32Array(Math.max(1, maxPts) * 2 + 8);
   }
   const out = decScratch;
 
@@ -618,9 +629,12 @@ export function decimateM4(
   if (n === 0) return new Float32Array(0);
   // Output points are always input points: ≤ n total, ≤ 4 per pixel column.
   const maxPts = Math.min(n, 4 * (Math.ceil(pixelWidth) + 8));
-  const out = new Float32Array(Math.max(1, maxPts) * 2);
+  // +8 slack: a column emits up to 4 points as one block — the grouped
+  // capacity check must not starve when only a few slots remain
+  const out = new Float32Array(Math.max(1, maxPts) * 2 + 8);
 
   let o = 0;
+  const cap = out.length;
   let col = Math.floor(xs[0] as number);
   let firstX = xs[0] as number;
   let firstY = ys[0] as number;
@@ -631,27 +645,33 @@ export function decimateM4(
   let lastX = firstX;
   let lastY = firstY;
 
-  const put = (x: number, y: number): void => {
-    if (o + 2 <= out.length) {
-      out[o] = x;
-      out[o + 1] = y;
-      o += 2;
-    }
-  };
-
-  const flush = () => {
-    put(firstX, firstY);
-    if (minY !== firstY || minX !== firstX) put(minX, minY);
-    if (maxY !== minY || maxX !== minX) put(maxX, maxY);
-    if (lastX !== maxX || lastY !== maxY) put(lastX, lastY);
-  };
-
+  // flat emission — a closure capturing `o`/`out` would sink the
+  // accumulators into context storage and measurably slow this loop
   for (let i = 1; i < n; i++) {
     const x = xs[i] as number;
     const y = ys[i] as number;
     const c = Math.floor(x);
     if (c !== col) {
-      flush();
+      if (o + 8 <= cap) {
+        out[o] = firstX;
+        out[o + 1] = firstY;
+        o += 2;
+        if (minY !== firstY || minX !== firstX) {
+          out[o] = minX;
+          out[o + 1] = minY;
+          o += 2;
+        }
+        if (maxY !== minY || maxX !== minX) {
+          out[o] = maxX;
+          out[o + 1] = maxY;
+          o += 2;
+        }
+        if (lastX !== maxX || lastY !== maxY) {
+          out[o] = lastX;
+          out[o + 1] = lastY;
+          o += 2;
+        }
+      }
       col = c;
       firstX = x;
       firstY = y;
@@ -670,6 +690,25 @@ export function decimateM4(
       lastY = y;
     }
   }
-  flush();
+  if (o + 8 <= cap) {
+    out[o] = firstX;
+    out[o + 1] = firstY;
+    o += 2;
+    if (minY !== firstY || minX !== firstX) {
+      out[o] = minX;
+      out[o + 1] = minY;
+      o += 2;
+    }
+    if (maxY !== minY || maxX !== minX) {
+      out[o] = maxX;
+      out[o + 1] = maxY;
+      o += 2;
+    }
+    if (lastX !== maxX || lastY !== maxY) {
+      out[o] = lastX;
+      out[o + 1] = lastY;
+      o += 2;
+    }
+  }
   return out.subarray(0, o);
 }

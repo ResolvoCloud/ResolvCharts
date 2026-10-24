@@ -479,7 +479,21 @@ export interface NormalizedSeries {
   /** Log-space twins of `y2`/`prevY2` (rangearea, `yScale: "log"` only). */
   y2Log?: Float64Array | null;
   prevY2Log?: Float64Array | null;
-  pathCache: { key: string; path: Path2D } | null;
+  /**
+   * Render memo: decimated+traced Path2D (plus the fill area and pixel
+   * bounds) for the last-rendered (view, t, curve, scales) key. Series
+   * objects are recreated on setData/append, so staleness only needs the
+   * scale/view key — see {@link renderLine}.
+   */
+  pathCache: {
+    key: string;
+    path: Path2D;
+    area?: Path2D | undefined;
+    x0: number;
+    x1: number;
+    y0: number;
+    y1: number;
+  } | null;
 }
 
 export interface NormalizedXY {

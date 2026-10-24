@@ -5,6 +5,7 @@
       "!**/dist",
       "!.cdn-tmp",
       "!.bench-out",
+      "!.playwright-mcp",
       "!docs",
       "!site/dist",
       "!**/.astro",

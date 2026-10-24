@@ -48,6 +48,8 @@ export class CanvasBackend implements RenderBackend {
   readonly overlay: CanvasRenderingContext2D;
   private gridCache: HTMLCanvasElement | null = null;
   private gridCtx: CanvasRenderingContext2D | null = null;
+  /** bumped whenever the offscreen grid bitmap is cleared/resized */
+  gridRev = 0;
   private container: HTMLElement;
   private settings: CanvasRenderingContext2DSettings;
 
@@ -72,6 +74,7 @@ export class CanvasBackend implements RenderBackend {
   }
 
   private applySize(): void {
+    this.gridRev++;
     const w = this.width * this.dpr;
     const h = this.height * this.dpr;
     for (const c of [this.mainCanvas, this.overlayCanvas]) {

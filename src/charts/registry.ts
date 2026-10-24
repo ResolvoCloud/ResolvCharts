@@ -204,8 +204,12 @@ export function splinePath(
     const ny = pts[2 * Math.min(i + 1, n - 1) + 1] as number;
     const x = pts[2 * i] as number;
     const y = pts[2 * i + 1] as number;
-    const d01 = Math.hypot(x - px, y - py);
-    const d12 = Math.hypot(nx - x, ny - y);
+    const ax = x - px;
+    const ay = y - py;
+    const bx = nx - x;
+    const by = ny - y;
+    const d01 = Math.sqrt(ax * ax + ay * ay);
+    const d12 = Math.sqrt(bx * bx + by * by);
     const sum = d01 + d12;
     const s01 = sum === 0 ? 0 : d01 / sum;
     const s12 = sum === 0 ? 0 : d12 / sum;
@@ -281,6 +285,25 @@ export function traceCurve(
   if (n === 0) return;
   if (connect) {
     traceSeg(path, pts, n, curve, true, tension);
+    return;
+  }
+  if (curve === "linear") {
+    // fused single pass — no per-run callback or subarray views
+    let started = false;
+    for (let i = 0; i < n; i++) {
+      const y = pts[2 * i + 1] as number;
+      if (!Number.isFinite(y)) {
+        started = false;
+        continue;
+      }
+      const x = pts[2 * i] as number;
+      if (!started) {
+        path.moveTo(x, y);
+        started = true;
+      } else {
+        path.lineTo(x, y);
+      }
+    }
     return;
   }
   eachRun(pts, n, (start, count) =>

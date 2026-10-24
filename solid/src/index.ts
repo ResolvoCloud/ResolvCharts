@@ -5,7 +5,7 @@ import {
   createChart,
 } from "resolvcharts";
 import type { JSX } from "solid-js";
-import { createEffect, onCleanup, onMount } from "solid-js";
+import { createEffect, on, onCleanup, onMount } from "solid-js";
 
 export type {
   Chart as ChartInstance,
@@ -38,10 +38,15 @@ export interface ChartProps extends Omit<ChartOptions, "data" | "onHover"> {
  */
 export function Chart(props: ChartProps): JSX.Element {
   const el = document.createElement("div");
-  if (props.class) el.className = props.class;
-  const style = props.style;
-  if (typeof style === "string") el.style.cssText = style;
-  else if (style) Object.assign(el.style, style);
+  // class/style stay reactive — a signal prop updates the element live
+  createEffect(() => {
+    el.className = props.class ?? "";
+  });
+  createEffect(() => {
+    const style = props.style;
+    if (typeof style === "string") el.style.cssText = style;
+    else if (style) Object.assign(el.style, style);
+  });
 
   let chart: ChartInstance | null = null;
   let mounted = false;
@@ -88,15 +93,13 @@ export function Chart(props: ChartProps): JSX.Element {
   });
 
   // `data` updates stream through the existing chart
-  let dataInit = false;
-  createEffect(() => {
-    const data = props.data;
-    if (!dataInit) {
-      dataInit = true;
-      return;
-    }
-    chart?.setData(data);
-  });
+  createEffect(
+    on(
+      () => props.data,
+      (data) => chart?.setData(data),
+      { defer: true },
+    ),
+  );
 
   return el;
 }

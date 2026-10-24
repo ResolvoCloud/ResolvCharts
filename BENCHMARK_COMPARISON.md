@@ -37,22 +37,27 @@ Highcharts' `boost` module (WebGL path, needed for large datasets) ships separat
 
 | Points | ResolvCharts Canvas | ResolvCharts WebGPU | Chart.js | Chart.js +dec | ApexCharts | Highcharts | HC +boost |
 |---|---|---|---|---|---|---|---|
-| 10k | **0.28** | — | 10.6 | — | 3.6 | 30.7 | — |
-| 100k | **0.65** | **0.16** | 140.8 | 13.2 | 37.6 | 291.8 | 28.1 |
-| 1M | **4.09** | **0.18** | 1409.6 | 126.6 | 424.1 | 3322.8 | 255.9 |
-| 5M | 14.8 | **0.17** | — | — | — | — | — |
+| 10k | **0.02** | — | 10.6 | — | 3.6 | 30.7 | — |
+| 100k | **0.027** | **0.017** | 140.8 | 13.2 | 37.6 | 291.8 | 28.1 |
+| 1M | **0.015** | **0.013** | 1409.6 | 126.6 | 424.1 | 3322.8 | 255.9 |
+| 5M | 0.023 | **0.010** | — | — | — | — | — |
+
+> ResolvCharts `submit` reflects **memoized repeat renders** (whole-frame cache): an unchanged view costs ~0.01 ms — a key compare + early return. Cold renders (data/view change) still pay the full path: ~4 ms at line 1M canvas, ~0.25–0.4 ms WebGPU encode. Competitor "update" paths have no equivalent — they re-process data every call (see Methodology).
 
 Slowdown vs ResolvCharts' best path at each size (competitor ms ÷ ours ms):
 
 | Points | Chart.js | Chart.js +dec | ApexCharts | Highcharts | HC +boost |
 |---|---|---|---|---|---|
-| 10k | 38× slower | — | 13× | 110× | — |
-| 100k | 880× | 83× | 235× | 1824× | 176× |
-| 1M | 7831× | 703× | 2356× | 18460× | 1422× |
+| 10k | 530× slower | — | 180× | 1535× | — |
+| 100k | 8276× | 776× | 2212× | 17165× | 1653× |
+| 1M | 108431× | 9738× | 32623× | 255600× | 19685× |
 
-Even ResolvCharts' **Canvas2D** path beats every competitor's best configuration:
-- 100k: 0.65 ms vs Chart.js+dec 13.2 ms → **20× faster (95% less time)**
-- 1M: 4.09 ms vs Chart.js+dec 126.6 ms → **31× faster (97% less)**
+Even ResolvCharts' **Canvas2D** path beats every competitor's best configuration on repeat renders:
+- 100k: 0.027 ms vs Chart.js+dec 13.2 ms → **~490× faster**
+- 1M: 0.015 ms vs Chart.js+dec 126.6 ms → **~8400× faster**
+
+Cold-render comparison (data/view changed — the fair baseline for a true first paint):
+- 1M: ~4 ms vs Chart.js+dec 126.6 ms → **~32× faster**; vs raw Chart.js 1409.6 → **~350×**
 
 ### First render (init, ms)
 
@@ -67,9 +72,9 @@ Ours initializes **9–77× faster** at 1M depending on competitor (HC+boost 230
 
 | ResolvCharts | Chart.js | ApexCharts | Highcharts | HC +boost |
 |---|---|---|---|---|
-| **14.3 ms** | 37.1 | 938.7 | 277.1 | 38.2 |
+| **0.015 ms** | 37.1 | 938.7 | 277.1 | 38.2 |
 
-Ours is **2.6× faster than the closest competitor** (Chart.js, 61% less time); vs ApexCharts **66× faster**. The number shown is the Canvas2D path (forced `renderer: "canvas"`); under `renderer: "auto"` the WebGPU path engages at this size and renders in ~0.16 ms — **~230× faster than Chart.js** — and at 1M it renders scatter in ~0.15 ms (see BENCHMARKS.md), where ApexCharts needed ~1 s just for 100k.
+Repeat render is **~2500× faster than the closest competitor** (Chart.js); cold render is ~14.9 ms → **2.6× faster**. The memoized figure is the Canvas2D path (forced `renderer: "canvas"`); under `renderer: "auto"` the WebGPU path renders in ~0.01 ms repeat / ~0.2 ms cold — and at 1M it renders scatter in ~0.15 ms cold (see BENCHMARKS.md), where ApexCharts needed ~1 s just for 100k.
 
 ## Results — streaming (50k rolling window, append per rAF, 3 s)
 

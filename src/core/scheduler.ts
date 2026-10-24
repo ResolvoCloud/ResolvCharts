@@ -32,7 +32,8 @@ export class Scheduler {
 
   private tick = (now: number): void => {
     this.id = null;
-    for (const fn of [...this.items]) {
+    // Set iteration tolerates delete-during-iteration; adds run this tick
+    for (const fn of this.items) {
       if (!fn(now)) this.items.delete(fn);
     }
     if (this.items.size > 0) {

@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.6.0
+
+A caching-focused release. Repeat renders of an unchanged view — hover repaints, tooltips, overlay redraws, programmatic `render()` — are now **~0.01–0.03 ms on both renderers** (vs 0.65–140.9 ms in 0.5.0: ~24× faster at line 100k, ~273× at 1M, ~643× at 5M, ~10,000× at scatter 1M canvas, ~9–17× on WebGPU submits). Cold renders also improved — decimation ~2×, linear path trace ~2.6×, spline control points ~5× — putting a cold line-1M canvas render at ~4 ms (was 4.09). WebGPU additionally caches its compute-decimated buffers and batches uniform writes; GPU decimation no longer re-runs on static frames.
+
+### Performance
+
+#### Canvas2D
+
+- **Per-series `Path2D` cache** (`s.pathCache`, previously unused) — decimation + `traceCurve` are memoized per `(view, t, curve, scales)` key; unchanged views only pay `stroke()` + grid blit.
+- **Grid-layer cache** — `drawStatic` re-rasterizes ticks/labels only when `(dataRev, gridRev, domain, plot)` change; repeat frames cost one `blitGrid`.
+- **Conditional clip** — `renderLine` tracks decimated pixel bounds and skips `save/clip/restore` when every series lands inside the plot.
+- **Spline `Math.hypot` → `sqrt(dx²+dy²)`** — ~5× the control-point distance kernel.
+- **Fused linear `traceCurve` / `fillRuns`** — single-pass emit for `curve: "linear"` (no `eachRun` pre-scan, no `subarray` views): ~2.6× on decimated points, ~2× on fills.
+- **`decimateM4` flat rewrite** — `put`/`flush` closures inlined into the bucket loop: ~2× decimation throughput.
+- **Pooled `mapSeriesPx` scratch** — direct (non-decimated) mapping reuses a `Float32Array` pool: ~2–3×.
+- Cold-path note: a true first render still pays decimate+trace (~4 ms at line 1M, ~140 ms at scatter 1M — arc-per-point).
+
+#### WebGPU
+
+- **Decimated-output buffer cache** — the M4 compute dispatch is skipped when `(data, view, t)` is unchanged (per-slot `decKey`); the dec buffer is reused across repeat frames.
+- **Batched uniform writes** — all per-op uniforms are staged on the CPU and flushed as one `queue.writeBuffer` in `end()` (was one call per series per op).
+- Cold scatter remains ~0.2 ms (one instanced quad draw) vs ~140 ms Canvas2D.
+
+#### All renderers
+
+- **Whole-frame render memo** — `render()` keys each frame on `(t, dataRev, gridRev, view domain, plot, hidden, hover, gpu state)`; an unchanged view early-returns before `clearRect`, for both renderers. Repeat renders (hover repaints, tooltips, programmatic `render()`) drop to ~0.01–0.03 ms — vs 0.5.0: **~24×** faster at line 100k canvas, **~273×** at 1M, **~643×** at 5M, **~10,000×** at scatter 1M, **~9–17×** on WebGPU submits.
+- **`makeScales` memo** — scale closures are rebuilt only on view/plot change.
+- **Scheduler** — direct `Set` iteration replaces per-tick `[...set]` spread (+21%); `panAxis` applies scales without the intermediate `.map` allocation.
+
+### Fixed
+
+- **`renderRangeArea` pooled-buffer aliasing** — the `hi` edge was held across the `lo` computation; dense data (n > 1.5×plotW) made both edges read the same scratch buffer, clobbering `hi`.
+- **`decimateM4`/`decimateSeriesPx` small-capacity starvation** — sparse inputs could emit zero points when the output buffer lacked grouped-write slack.
+- **React wrapper: `ref` prop unusable on React 18** — switched to `forwardRef` (works on 18 and 19).
+- **React wrapper: chart rebuild on every render with inline refs** — `ref` identity was in the mount-effect deps; ref syncing now lives in its own effect (`[ref, type]`), covering mount, `type` rebuilds, and ref swaps.
+- **Solid wrapper: `class`/`style` not reactive** — applied inside `createEffect` so signal-bound props update the element live; `data` effect switched to the `on(..., { defer: true })` idiom.
+
+### Added
+
+- **`bench/ab.ts` / `bench/ab2.ts`** — A/B microbenchmark harnesses for render-path candidates (all applied changes above were measured here first; rejected candidates documented in-file).
+- **`BENCHMARKS.md` Safari cross-check section** (Safari 27.0.1 / WebKit 605.1.15) — sub-ms memoized renders in both engines; scatter arc raster ~4× slower in WebKit, making `renderer: "auto"` effectively required for large scatter there.
+- **`react-dom` peer dependency** and `Chart.displayName` in `resolvcharts-react`.
+
+### Changed
+
+- `biome.json` excludes `.playwright-mcp/` (generated benchmark output).
+
 ## 0.5.0
 
 ### Added
