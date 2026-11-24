@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.1
+
+### Added
+
+- **`fill: false` for `sparkline`** — drops the faint under-series fill (10% alpha) and draws the stroke + end dot only, for contexts where a clean line reads better than the tinted area. Default `true` is unchanged. Declared on `ChartOptions`, so it flows through the React and Solid wrappers automatically.
+
 ## 0.6.0
 
 A caching-focused release. Repeat renders of an unchanged view — hover repaints, tooltips, overlay redraws, programmatic `render()` — are now **~0.01–0.03 ms on both renderers** (vs 0.65–140.9 ms in 0.5.0: ~24× faster at line 100k, ~273× at 1M, ~643× at 5M, ~10,000× at scatter 1M canvas, ~9–17× on WebGPU submits). Cold renders also improved — decimation ~2×, linear path trace ~2.6×, spline control points ~5× — putting a cold line-1M canvas render at ~4 ms (was 4.09). WebGPU additionally caches its compute-decimated buffers and batches uniform writes; GPU decimation no longer re-runs on static frames.
