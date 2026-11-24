@@ -1,8 +1,11 @@
 {
   "name": "resolvcharts-solid",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "SolidJS wrapper for resolvcharts",
-  "author": "Resolvo Cloud",
+  "author": {
+    "name": "Resolvo Cloud",
+    "url": "https://resolvocloud.com"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ResolvoCloud/ResolvCharts.git",

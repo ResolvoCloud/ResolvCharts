@@ -1,6 +1,6 @@
 # resolvcharts-solid
 
-SolidJS wrapper for [resolvcharts](https://github.com/ResolvoCloud/ResolvCharts) — a minimal, zero-dependency canvas charting library.
+SolidJS wrapper for [resolvcharts](https://github.com/ResolvoCloud/ResolvCharts) — a minimal, zero-dependency canvas charting library, by [Resolvo Cloud](https://resolvocloud.com).
 
 ```sh
 npm install resolvcharts-solid

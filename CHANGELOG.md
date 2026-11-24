@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.2
+
+### Changed
+
+- **Package metadata** — `author` is now `{ name, url }` linking to [resolvocloud.com](https://resolvocloud.com); the react/solid wrapper READMEs link to it as well. No code changes.
+
 ## 0.6.1
 
 ### Added
