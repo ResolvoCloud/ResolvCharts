@@ -310,6 +310,11 @@ export interface ChartOptions {
   tension?: number;
   grid?: boolean;
   /**
+   * `sparkline` only: `false` drops the faint under-series fill and
+   * draws the stroke alone. Default `true`.
+   */
+  fill?: boolean;
+  /**
    * `true`/`false` toggles the tooltip, or pass an object to customize it —
    * e.g. `{ radius: 0 }` for sharp corners (px number or CSS length).
    */

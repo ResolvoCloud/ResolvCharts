@@ -13,10 +13,12 @@ export function renderSparkline(r: RenderContext): void {
   const dn = pts.length / 2;
   const path = new Path2D();
   traceCurve(path, pts, dn, r.opts.curve ?? "linear", false, r.opts.tension);
-  const area = new Path2D();
-  fillRuns(r, area, pts, r.plot.y + r.plot.h);
-  ctx.fillStyle = withAlpha(s.color, 0.1);
-  ctx.fill(area);
+  if (r.opts.fill !== false) {
+    const area = new Path2D();
+    fillRuns(r, area, pts, r.plot.y + r.plot.h);
+    ctx.fillStyle = withAlpha(s.color, 0.1);
+    ctx.fill(area);
+  }
   ctx.strokeStyle = s.color;
   ctx.lineWidth = 1.5;
   ctx.lineJoin = "round";
